@@ -83,7 +83,7 @@ type aminoPubKey struct {
 // g: the sorted-keys StdSignDoc JSON over chainID and accountNumber
 // (0 for a gentx — the account doesn't exist at genesis).
 func AminoSignBytes(g *ParsedGentx, chainID string, accountNumber uint64) ([]byte, error) {
-	if g.Signer.Mode != "SIGN_MODE_LEGACY_AMINO_JSON" {
+	if g.Signer.Mode != signModeAminoJSONName {
 		return nil, fmt.Errorf("gentxvalidate: unsupported sign mode %q", g.Signer.Mode)
 	}
 	consKeyName, ok := aminoConsensusKeyNames[g.Msg.ConsensusPubKeyTypeURL]
@@ -146,17 +146,21 @@ func AminoSignBytes(g *ParsedGentx, chainID string, accountNumber uint64) ([]byt
 }
 
 // VerifyAminoJSON reconstructs the SIGN_MODE_LEGACY_AMINO_JSON sign bytes and
-// verifies the gentx's signature against the account pubkey. Single-key
-// secp256k1 signers only — the multisig signer shape arrives with Phase 2.3b.
+// verifies the gentx's signature(s) against the account key: a single
+// secp256k1 key, or a LegacyAminoPubKey multisig (every present component
+// signature over the same sign bytes, at least threshold of them).
 //
 // A false return with nil error means the signature simply does not verify;
 // an error means the input couldn't be processed at all.
 func VerifyAminoJSON(g *ParsedGentx, chainID string, accountNumber uint64) (bool, error) {
-	if err := checkSingleSecpSigner(g); err != nil {
-		return false, err
-	}
 	signBytes, err := AminoSignBytes(g, chainID, accountNumber)
 	if err != nil {
+		return false, err
+	}
+	if g.Signer.Multisig != nil {
+		return verifyAminoMultisig(g.Signer.Multisig, g.Signature, signBytes)
+	}
+	if err := checkSingleSecpSigner(g); err != nil {
 		return false, err
 	}
 	return verifySecpCompact(g.Signer.PubKey, g.Signature, signBytes)

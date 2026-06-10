@@ -9,6 +9,12 @@ package gentxvalidate
 // account does not exist before genesis, so it is always 0.
 const genesisAccountNumber = 0
 
+// Sign-mode strings as they appear in proto JSON mode_info.
+const (
+	signModeDirectName    = "SIGN_MODE_DIRECT"
+	signModeAminoJSONName = "SIGN_MODE_LEGACY_AMINO_JSON"
+)
+
 // A modeVerifier verifies a gentx's signature(s) for one sign mode,
 // reconstructing that mode's sign bytes over chainID and accountNumber.
 // False with a nil error means the signature simply does not verify; an error
@@ -21,8 +27,8 @@ var signModes = map[string]struct {
 	invariant string
 	verify    modeVerifier
 }{
-	"SIGN_MODE_DIRECT":            {InvSignatureDirect, VerifyDirect},
-	"SIGN_MODE_LEGACY_AMINO_JSON": {InvSignatureAminoJSON, VerifyAminoJSON},
+	signModeDirectName:    {InvSignatureDirect, VerifyDirect},
+	signModeAminoJSONName: {InvSignatureAminoJSON, VerifyAminoJSON},
 }
 
 // CheckSignature is the heavy signature invariant: it dispatches to the

@@ -58,9 +58,25 @@ type Coin struct {
 
 type SignerInfo struct {
 	PubKeyTypeURL string
-	PubKey        []byte // 33-byte compressed secp256k1 for the common case
-	Mode          string
+	PubKey        []byte // 33-byte compressed secp256k1; nil for multisig signers
+	Mode          string // for multisig: the first component mode (uniformity is enforced at verification)
 	Sequence      uint64
+	Multisig      *MultisigSigner // non-nil for LegacyAminoPubKey signers
+}
+
+// MultisigSigner is the decoded LegacyAminoPubKey signer shape: k-of-n
+// component keys plus the compact bitarray marking which components signed.
+type MultisigSigner struct {
+	Threshold       int
+	Members         []MultisigMember
+	Modes           []string // one per present signature (per set bitarray bit)
+	BitarrayElems   []byte
+	ExtraBitsStored int
+}
+
+type MultisigMember struct {
+	PubKeyTypeURL string
+	PubKey        []byte
 }
 
 type Fee struct {
@@ -101,6 +117,34 @@ type msgCreateValidatorJSON struct {
 	Value             coinJSON   `json:"value"`
 }
 
+type signerInfoJSON struct {
+	PublicKey signerPubKeyJSON `json:"public_key"`
+	ModeInfo  modeInfoJSON     `json:"mode_info"`
+	Sequence  string           `json:"sequence"`
+}
+
+// signerPubKeyJSON covers both account-key shapes: a single key (key) and
+// LegacyAminoPubKey (threshold + public_keys).
+type signerPubKeyJSON struct {
+	Type       string       `json:"@type"`
+	Key        string       `json:"key"`
+	Threshold  int          `json:"threshold"`
+	PublicKeys []anyKeyJSON `json:"public_keys"`
+}
+
+type modeInfoJSON struct {
+	Single struct {
+		Mode string `json:"mode"`
+	} `json:"single"`
+	Multi struct {
+		Bitarray struct {
+			ExtraBitsStored int    `json:"extra_bits_stored"`
+			Elems           string `json:"elems"`
+		} `json:"bitarray"`
+		ModeInfos []modeInfoJSON `json:"mode_infos"`
+	} `json:"multi"`
+}
+
 type gentxJSON struct {
 	Body struct {
 		Messages                    []json.RawMessage `json:"messages"`
@@ -110,16 +154,8 @@ type gentxJSON struct {
 		NonCriticalExtensionOptions []json.RawMessage `json:"non_critical_extension_options"`
 	} `json:"body"`
 	AuthInfo struct {
-		SignerInfos []struct {
-			PublicKey anyKeyJSON `json:"public_key"`
-			ModeInfo  struct {
-				Single struct {
-					Mode string `json:"mode"`
-				} `json:"single"`
-			} `json:"mode_info"`
-			Sequence string `json:"sequence"`
-		} `json:"signer_infos"`
-		Fee struct {
+		SignerInfos []signerInfoJSON `json:"signer_infos"`
+		Fee         struct {
 			Amount   []coinJSON `json:"amount"`
 			GasLimit string     `json:"gas_limit"`
 			Payer    string     `json:"payer"`
@@ -168,12 +204,7 @@ func Decode(data []byte) (*ParsedGentx, error) {
 		return nil, fmt.Errorf("gentxvalidate: decode consensus pubkey: %w", err)
 	}
 
-	si := raw.AuthInfo.SignerInfos[0]
-	acctPubKey, err := base64.StdEncoding.DecodeString(si.PublicKey.Key)
-	if err != nil {
-		return nil, fmt.Errorf("gentxvalidate: decode account pubkey: %w", err)
-	}
-	sequence, err := parseUint(si.Sequence, "sequence")
+	signer, err := decodeSignerInfo(raw.AuthInfo.SignerInfos[0])
 	if err != nil {
 		return nil, err
 	}
@@ -220,12 +251,7 @@ func Decode(data []byte) (*ParsedGentx, error) {
 		},
 		Memo:          raw.Body.Memo,
 		TimeoutHeight: timeoutHeight,
-		Signer: SignerInfo{
-			PubKeyTypeURL: si.PublicKey.Type,
-			PubKey:        acctPubKey,
-			Mode:          si.ModeInfo.Single.Mode,
-			Sequence:      sequence,
-		},
+		Signer:        signer,
 		Fee: Fee{
 			Amount:   feeAmount,
 			GasLimit: gasLimit,
@@ -233,6 +259,79 @@ func Decode(data []byte) (*ParsedGentx, error) {
 			Granter:  raw.AuthInfo.Fee.Granter,
 		},
 		Signature: sig,
+	}, nil
+}
+
+// decodeSignerInfo decodes auth_info.signer_infos[0] — either a single
+// account key or a LegacyAminoPubKey multisig.
+func decodeSignerInfo(si signerInfoJSON) (SignerInfo, error) {
+	sequence, err := parseUint(si.Sequence, "sequence")
+	if err != nil {
+		return SignerInfo{}, err
+	}
+
+	if si.PublicKey.Type != legacyAminoPubKeyTypeURL {
+		pk, err := base64.StdEncoding.DecodeString(si.PublicKey.Key)
+		if err != nil {
+			return SignerInfo{}, fmt.Errorf("gentxvalidate: decode account pubkey: %w", err)
+		}
+		return SignerInfo{
+			PubKeyTypeURL: si.PublicKey.Type,
+			PubKey:        pk,
+			Mode:          si.ModeInfo.Single.Mode,
+			Sequence:      sequence,
+		}, nil
+	}
+
+	ms, err := decodeMultisigSigner(si)
+	if err != nil {
+		return SignerInfo{}, err
+	}
+	return SignerInfo{
+		PubKeyTypeURL: si.PublicKey.Type,
+		Mode:          ms.Modes[0],
+		Sequence:      sequence,
+		Multisig:      ms,
+	}, nil
+}
+
+func decodeMultisigSigner(si signerInfoJSON) (*MultisigSigner, error) {
+	pub, multi := si.PublicKey, si.ModeInfo.Multi
+	if len(pub.PublicKeys) == 0 {
+		return nil, fmt.Errorf("gentxvalidate: multisig pubkey has no component keys")
+	}
+	if pub.Threshold < 1 || pub.Threshold > len(pub.PublicKeys) {
+		return nil, fmt.Errorf("gentxvalidate: multisig threshold %d out of range for %d keys", pub.Threshold, len(pub.PublicKeys))
+	}
+	if len(multi.ModeInfos) == 0 {
+		return nil, fmt.Errorf("gentxvalidate: multisig signer has no mode_infos")
+	}
+
+	elems, err := base64.StdEncoding.DecodeString(multi.Bitarray.Elems)
+	if err != nil {
+		return nil, fmt.Errorf("gentxvalidate: decode multisig bitarray: %w", err)
+	}
+
+	members := make([]MultisigMember, 0, len(pub.PublicKeys))
+	for _, k := range pub.PublicKeys {
+		pk, err := base64.StdEncoding.DecodeString(k.Key)
+		if err != nil {
+			return nil, fmt.Errorf("gentxvalidate: decode multisig component pubkey: %w", err)
+		}
+		members = append(members, MultisigMember{PubKeyTypeURL: k.Type, PubKey: pk})
+	}
+
+	modes := make([]string, 0, len(multi.ModeInfos))
+	for _, mi := range multi.ModeInfos {
+		modes = append(modes, mi.Single.Mode)
+	}
+
+	return &MultisigSigner{
+		Threshold:       pub.Threshold,
+		Members:         members,
+		Modes:           modes,
+		BitarrayElems:   elems,
+		ExtraBitsStored: multi.Bitarray.ExtraBitsStored,
 	}, nil
 }
 

@@ -23,7 +23,7 @@ const legacyDecPrecision = 18 // math.LegacyDec fixed decimal places
 // chain_id is a sign-time input — the gentx JSON does not carry it.
 // account_number is 0 for a gentx (the account doesn't exist at genesis).
 func DirectSignBytes(g *ParsedGentx, chainID string, accountNumber uint64) ([]byte, error) {
-	if g.Signer.Mode != "SIGN_MODE_DIRECT" {
+	if g.Signer.Mode != signModeDirectName {
 		return nil, fmt.Errorf("gentxvalidate: unsupported sign mode %q", g.Signer.Mode)
 	}
 
