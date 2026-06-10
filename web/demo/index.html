@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>gentxvalidate — browser demo</title>
+  <script src="wasm_exec.js"></script>
+  <style>
+    body { font-family: monospace; max-width: 60rem; margin: 2rem auto; padding: 0 1rem; }
+    textarea { width: 100%; height: 14rem; }
+    label { display: inline-block; min-width: 11rem; }
+    input { width: 16rem; margin-bottom: .3rem; }
+    pre { background: #f4f4f4; padding: 1rem; overflow-x: auto; }
+    .fail { color: #b00020; }
+    .pass { color: #1b7f3b; }
+  </style>
+</head>
+<body>
+  <h1>gentxvalidate demo</h1>
+  <p>Build with <code>make wasm</code>, then serve this directory
+     (e.g. <code>python3 -m http.server</code>) — WASM cannot load from file://.</p>
+
+  <h2>gentx JSON</h2>
+  <textarea id="gentx" placeholder="paste a gentx.json here"></textarea>
+
+  <h2>Launch params</h2>
+  <div><label for="chain_id">chain_id</label><input id="chain_id" value="osmosis-1"></div>
+  <div><label for="bond_denom">bond_denom</label><input id="bond_denom" value="uosmo"></div>
+  <div><label for="bech32_prefix">bech32_prefix</label><input id="bech32_prefix" value="osmo"></div>
+  <div><label for="min_self_delegation">min_self_delegation</label><input id="min_self_delegation" value="1"></div>
+  <div><label for="min_commission_rate">min_commission_rate</label><input id="min_commission_rate" value=""></div>
+  <div><label for="max_commission_rate">max_commission_rate</label><input id="max_commission_rate" value=""></div>
+
+  <p>
+    <button onclick="validate('light')">RunLight (advisory)</button>
+    <button onclick="validate('all')">RunAll (incl. signature)</button>
+  </p>
+
+  <h2>Results</h2>
+  <pre id="results">—</pre>
+
+  <script>
+    const go = new Go();
+    WebAssembly.instantiateStreaming(fetch("gentxvalidate.wasm"), go.importObject)
+      .then((result) => { go.run(result.instance); })
+      .catch((err) => { document.getElementById("results").textContent = "failed to load wasm: " + err; });
+
+    function params() {
+      const get = (id) => document.getElementById(id).value;
+      return JSON.stringify({
+        chain_id: get("chain_id"),
+        bond_denom: get("bond_denom"),
+        bech32_prefix: get("bech32_prefix"),
+        min_self_delegation: get("min_self_delegation"),
+        min_commission_rate: get("min_commission_rate"),
+        max_commission_rate: get("max_commission_rate"),
+      });
+    }
+
+    function validate(which) {
+      const run = which === "all" ? seedwardRunAll : seedwardRunLight;
+      const results = JSON.parse(run(document.getElementById("gentx").value, params()));
+      const out = document.getElementById("results");
+      out.innerHTML = results.map((r) => {
+        const cls = r.ok ? "pass" : "fail";
+        const reason = r.reason ? " — " + r.reason : "";
+        return `<span class="${cls}">${r.ok ? "PASS" : "FAIL"} ${r.invariant}${reason}</span>`;
+      }).join("\n");
+    }
+  </script>
+</body>
+</html>

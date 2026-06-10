@@ -54,7 +54,9 @@ func checkSignatureMode(g *ParsedGentx, p Params, invariant string, verify modeV
 		return fail(invariant, "%v", err)
 	}
 	if !ok {
-		return fail(invariant, "signature does not verify for chain-id %q", p.ChainID)
+		return fail(invariant,
+			"signature does not verify: a signed field was modified after signing, or the gentx was signed for a chain other than %q",
+			p.ChainID)
 	}
 	return pass(invariant)
 }
