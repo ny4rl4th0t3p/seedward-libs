@@ -3,6 +3,7 @@ package gentxvalidate
 import (
 	"bytes"
 	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -29,9 +30,11 @@ func loadFixtureNamed(t *testing.T, name string) *ParsedGentx {
 	return g
 }
 
+// readFixtureBytes reads a named fixture from the osmosis-1 corpus, which is
+// where all individually-pinned fixtures live (they are corpus members).
 func readFixtureBytes(t *testing.T, name string) []byte {
 	t.Helper()
-	data, err := os.ReadFile("testdata/" + name)
+	data, err := os.ReadFile(filepath.Join("testdata", "osmosis-1-gentx", name))
 	if err != nil {
 		t.Fatalf("read fixture: %v", err)
 	}

@@ -1,7 +1,6 @@
 package gentxvalidate
 
 import (
-	"os"
 	"strings"
 	"testing"
 )
@@ -165,10 +164,7 @@ func TestInvariantsTable(t *testing.T) {
 }
 
 func TestValidFixturePassesAll(t *testing.T) {
-	raw, err := os.ReadFile("testdata/gentx-Bi23Labs.json")
-	if err != nil {
-		t.Fatal(err)
-	}
+	raw := readFixtureBytes(t, "gentx-Bi23Labs.json")
 
 	results := RunAll(raw, osmosisParams())
 	if len(results) != 9 { // well_formed + 7 light + signature_direct
@@ -185,10 +181,7 @@ func TestValidFixturePassesAll(t *testing.T) {
 }
 
 func TestRunLightSubset(t *testing.T) {
-	raw, err := os.ReadFile("testdata/gentx-Bi23Labs.json")
-	if err != nil {
-		t.Fatal(err)
-	}
+	raw := readFixtureBytes(t, "gentx-Bi23Labs.json")
 
 	results := RunLight(raw, osmosisParams())
 	if len(results) != 8 { // well_formed + 7 light, no signature
