@@ -22,7 +22,7 @@ const msgCreateValidatorAminoName = "cosmos-sdk/MsgCreateValidator"
 // aminoConsensusKeyNames maps a consensus pubkey proto type URL to its legacy
 // amino name.
 var aminoConsensusKeyNames = map[string]string{
-	"/cosmos.crypto.ed25519.PubKey": "tendermint/PubKeyEd25519",
+	ed25519PubKeyTypeURL: "tendermint/PubKeyEd25519",
 }
 
 type aminoStdSignDoc struct {

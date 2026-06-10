@@ -9,6 +9,41 @@ import "testing"
 // the layered-oracle design from the phase 2 plan.
 const multisigFixtureName = "gentx-Stargaze.json"
 
+// TestMultisigOperatorAddress: the fixture's own bech32 addresses are the
+// oracle — the SDK derived them from this exact multisig pubkey, so the check
+// passes only if our amino-encoded SHA256 derivation is byte-exact.
+func TestMultisigOperatorAddress(t *testing.T) {
+	g := loadFixtureNamed(t, multisigFixtureName)
+
+	r := CheckOperatorAddress(g, osmosisParams())
+	if !r.OK {
+		t.Fatalf("operator_address failed: %s", r.Reason)
+	}
+}
+
+// TestRunAllMultisigFullPass: with address derivation in place, the multisig
+// fixture passes the complete invariant set — no asterisks.
+func TestRunAllMultisigFullPass(t *testing.T) {
+	raw := readFixtureBytes(t, multisigFixtureName)
+
+	results := RunAll(raw, osmosisParams())
+	for _, r := range results {
+		if !r.OK {
+			t.Errorf("%s failed: %s", r.Invariant, r.Reason)
+		}
+	}
+}
+
+func TestMultisigAddressErrors(t *testing.T) {
+	g := loadFixtureNamed(t, multisigFixtureName)
+	g.Signer.Multisig.Members[0].PubKeyTypeURL = "/cosmos.crypto.sr25519.PubKey"
+
+	r := CheckOperatorAddress(g, osmosisParams())
+	if r.OK {
+		t.Error("unknown member key type passed operator_address")
+	}
+}
+
 func TestMultisigDecode(t *testing.T) {
 	g := loadFixtureNamed(t, multisigFixtureName)
 

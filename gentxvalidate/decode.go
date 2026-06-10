@@ -67,7 +67,7 @@ type SignerInfo struct {
 // MultisigSigner is the decoded LegacyAminoPubKey signer shape: k-of-n
 // component keys plus the compact bitarray marking which components signed.
 type MultisigSigner struct {
-	Threshold       int
+	Threshold       uint32
 	Members         []MultisigMember
 	Modes           []string // one per present signature (per set bitarray bit)
 	BitarrayElems   []byte
@@ -128,7 +128,7 @@ type signerInfoJSON struct {
 type signerPubKeyJSON struct {
 	Type       string       `json:"@type"`
 	Key        string       `json:"key"`
-	Threshold  int          `json:"threshold"`
+	Threshold  uint32       `json:"threshold"`
 	PublicKeys []anyKeyJSON `json:"public_keys"`
 }
 
@@ -146,6 +146,12 @@ type modeInfoJSON struct {
 }
 
 type gentxJSON struct {
+	// Legacy pre-protobuf (SDK < 0.40) StdTx markers — detected only to reject
+	// with a clear error. Seedward coordinates new networks; the legacy format
+	// is out of scope (decided 2026-06-10).
+	LegacyType  string          `json:"type"`
+	LegacyValue json.RawMessage `json:"value"`
+
 	Body struct {
 		Messages                    []json.RawMessage `json:"messages"`
 		Memo                        string            `json:"memo"`
@@ -171,6 +177,10 @@ func Decode(data []byte) (*ParsedGentx, error) {
 	var raw gentxJSON
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return nil, fmt.Errorf("gentxvalidate: parse gentx JSON: %w", err)
+	}
+
+	if raw.LegacyType != "" && len(raw.LegacyValue) > 0 {
+		return nil, fmt.Errorf("gentxvalidate: legacy StdTx gentx (%q, pre-protobuf SDK) is not supported", raw.LegacyType)
 	}
 
 	// Exactly one message — the spec's single-MsgCreateValidator heavy
@@ -300,7 +310,7 @@ func decodeMultisigSigner(si signerInfoJSON) (*MultisigSigner, error) {
 	if len(pub.PublicKeys) == 0 {
 		return nil, fmt.Errorf("gentxvalidate: multisig pubkey has no component keys")
 	}
-	if pub.Threshold < 1 || pub.Threshold > len(pub.PublicKeys) {
+	if pub.Threshold < 1 || int(pub.Threshold) > len(pub.PublicKeys) {
 		return nil, fmt.Errorf("gentxvalidate: multisig threshold %d out of range for %d keys", pub.Threshold, len(pub.PublicKeys))
 	}
 	if len(multi.ModeInfos) == 0 {

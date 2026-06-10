@@ -11,6 +11,22 @@ import (
 
 const accountAddrLen = 20 // RIPEMD160 digest size
 
+// signerAddressBytes derives the signing account's 20-byte address:
+// RIPEMD160(SHA256(pubkey)) for single secp256k1 keys, SHA256 truncated over
+// the amino-encoded LegacyAminoPubKey for multisigs.
+func signerAddressBytes(s *SignerInfo) ([]byte, error) {
+	if s.Multisig != nil {
+		return multisigAddressBytes(s.Multisig)
+	}
+	if s.PubKeyTypeURL != secp256k1PubKeyTypeURL {
+		return nil, fmt.Errorf("unsupported account key type %q", s.PubKeyTypeURL)
+	}
+	if len(s.PubKey) != compressedPubKeyLen {
+		return nil, fmt.Errorf("account pubkey is %d bytes, want %d (compressed)", len(s.PubKey), compressedPubKeyLen)
+	}
+	return accountAddressBytes(s.PubKey), nil
+}
+
 // accountAddressBytes derives the 20-byte Cosmos account address from a
 // 33-byte compressed secp256k1 pubkey: RIPEMD160(SHA256(pubkey)).
 func accountAddressBytes(compressedPubKey []byte) []byte {

@@ -180,8 +180,9 @@ func CheckMoniker(g *ParsedGentx, p Params) Result {
 
 // CheckOperatorAddress verifies both addresses are bech32-valid under the
 // launch HRP (account prefix for delegator_address, +"valoper" for
-// validator_address) and that both are derived from the signing account's
-// pubkey: RIPEMD160(SHA256(secp256k1 pubkey)).
+// validator_address) and that both are derived from the signing account:
+// RIPEMD160(SHA256(pubkey)) for secp256k1 keys, SHA256 over the amino-encoded
+// LegacyAminoPubKey for multisigs.
 func CheckOperatorAddress(g *ParsedGentx, p Params) Result {
 	if p.Bech32Prefix == "" {
 		return fail(InvOperatorAddress, "params: bech32 prefix not set")
@@ -196,13 +197,10 @@ func CheckOperatorAddress(g *ParsedGentx, p Params) Result {
 		return fail(InvOperatorAddress, "delegator_address: %v", err)
 	}
 
-	if g.Signer.PubKeyTypeURL != secp256k1PubKeyTypeURL {
-		return fail(InvOperatorAddress, "cannot derive address: unsupported account key type %q", g.Signer.PubKeyTypeURL)
+	derived, err := signerAddressBytes(&g.Signer)
+	if err != nil {
+		return fail(InvOperatorAddress, "cannot derive address: %v", err)
 	}
-	if len(g.Signer.PubKey) != compressedPubKeyLen {
-		return fail(InvOperatorAddress, "account pubkey is %d bytes, want %d (compressed)", len(g.Signer.PubKey), compressedPubKeyLen)
-	}
-	derived := accountAddressBytes(g.Signer.PubKey)
 
 	if !bytes.Equal(valBytes, derived) {
 		return fail(InvOperatorAddress, "validator_address is not derived from the signing account")

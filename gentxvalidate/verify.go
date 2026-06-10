@@ -10,6 +10,7 @@ import (
 
 const (
 	secp256k1PubKeyTypeURL = "/cosmos.crypto.secp256k1.PubKey"
+	ed25519PubKeyTypeURL   = "/cosmos.crypto.ed25519.PubKey"
 
 	compressedPubKeyLen = 33 // secp256k1 compressed public key
 	compactSigLen       = 64 // r||s, 32 bytes each
