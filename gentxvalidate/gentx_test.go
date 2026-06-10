@@ -17,15 +17,25 @@ const (
 
 func loadFixture(t *testing.T) *ParsedGentx {
 	t.Helper()
-	data, err := os.ReadFile("testdata/gentx-Bi23Labs.json")
-	if err != nil {
-		t.Fatalf("read fixture: %v", err)
-	}
-	g, err := Decode(data)
+	return loadFixtureNamed(t, "gentx-Bi23Labs.json")
+}
+
+func loadFixtureNamed(t *testing.T, name string) *ParsedGentx {
+	t.Helper()
+	g, err := Decode(readFixtureBytes(t, name))
 	if err != nil {
 		t.Fatalf("decode fixture: %v", err)
 	}
 	return g
+}
+
+func readFixtureBytes(t *testing.T, name string) []byte {
+	t.Helper()
+	data, err := os.ReadFile("testdata/" + name)
+	if err != nil {
+		t.Fatalf("read fixture: %v", err)
+	}
+	return data
 }
 
 func TestDecodeFields(t *testing.T) {

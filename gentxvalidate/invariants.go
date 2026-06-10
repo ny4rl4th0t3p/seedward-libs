@@ -213,20 +213,11 @@ func CheckOperatorAddress(g *ParsedGentx, p Params) Result {
 	return pass(InvOperatorAddress)
 }
 
-// CheckSignatureDirect is the heavy signature invariant: SIGN_MODE_DIRECT
-// sign-bytes reconstruction over Params.ChainID (account number 0 at genesis)
-// verified against the account pubkey. Because the chain-id is inside the
-// signed bytes, this also proves the gentx was signed for the launch's chain.
+// CheckSignatureDirect is the SIGN_MODE_DIRECT signature invariant: sign-bytes
+// reconstruction over Params.ChainID (account number 0 at genesis) verified
+// against the account pubkey. Because the chain-id is inside the signed bytes,
+// this also proves the gentx was signed for the launch's chain. Mode-agnostic
+// callers use CheckSignature, which dispatches on the gentx's declared mode.
 func CheckSignatureDirect(g *ParsedGentx, p Params) Result {
-	if p.ChainID == "" {
-		return fail(InvSignatureDirect, "params: chain-id not set")
-	}
-	ok, err := VerifyDirect(g, p.ChainID, 0)
-	if err != nil {
-		return fail(InvSignatureDirect, "%v", err)
-	}
-	if !ok {
-		return fail(InvSignatureDirect, "signature does not verify for chain-id %q", p.ChainID)
-	}
-	return pass(InvSignatureDirect)
+	return checkSignatureMode(g, p, InvSignatureDirect, VerifyDirect)
 }

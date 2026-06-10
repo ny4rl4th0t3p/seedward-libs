@@ -29,12 +29,13 @@ func RunLight(raw []byte, p Params) []Result {
 	return append([]Result{pass(InvWellFormed)}, lightChecks(g, p)...)
 }
 
-// RunAll decodes raw and runs the light set plus the heavy signature check.
+// RunAll decodes raw and runs the light set plus the heavy signature check,
+// dispatched by the gentx's declared sign mode (spec §5).
 func RunAll(raw []byte, p Params) []Result {
 	g, err := Decode(raw)
 	if err != nil {
 		return []Result{fail(InvWellFormed, "%v", err)}
 	}
 	results := append([]Result{pass(InvWellFormed)}, lightChecks(g, p)...)
-	return append(results, CheckSignatureDirect(g, p))
+	return append(results, CheckSignature(g, p))
 }

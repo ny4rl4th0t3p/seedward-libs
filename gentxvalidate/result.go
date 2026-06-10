@@ -23,6 +23,11 @@ const (
 	InvMoniker               = "moniker"
 	InvOperatorAddress       = "operator_address"
 	InvSignatureDirect       = "signature_direct"
+
+	// InvSignatureUnsupportedMode is reported by CheckSignature when the gentx
+	// declares a sign mode with no registered verifier. Per-mode signature
+	// invariants keep their own IDs (e.g. signature_direct).
+	InvSignatureUnsupportedMode = "signature_unsupported_mode"
 )
 
 func pass(invariant string) Result {
