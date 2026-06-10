@@ -32,3 +32,8 @@ go.work.sum
 # .vscode/
 
 /spike/
+
+# Built WASM artifacts (make wasm); wasm_exec.js is copied from the Go toolchain
+web/demo/*.wasm
+web/demo/*.wasm.gz
+web/demo/wasm_exec.js

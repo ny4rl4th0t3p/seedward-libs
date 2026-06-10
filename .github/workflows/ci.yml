@@ -1,0 +1,56 @@
+name: ci
+
+on:
+  pull_request:
+  workflow_dispatch: # on-demand, runnable on any branch
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# A newer push to the same branch/PR supersedes the running build.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.11.4 
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: make test
+
+  wasm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Parity — full test suite in the WASM runtime
+        run: make test-wasm
+      - name: Build blob and enforce the 2 MB gzipped budget
+        run: make wasm-size
+#      - name: Upload blob
+#        uses: actions/upload-artifact@v4
+#        with:
+#          name: gentxvalidate-wasm
+#          path: web/demo/gentxvalidate.wasm.gz
