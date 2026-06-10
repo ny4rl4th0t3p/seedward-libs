@@ -137,6 +137,9 @@ func Decode(data []byte) (*ParsedGentx, error) {
 		return nil, fmt.Errorf("gentxvalidate: parse gentx JSON: %w", err)
 	}
 
+	// Exactly one message — the spec's single-MsgCreateValidator heavy
+	// invariant is enforced here and reported under well_formed; it has no
+	// separate invariant ID.
 	if n := len(raw.Body.Messages); n != 1 {
 		return nil, fmt.Errorf("gentxvalidate: expected exactly 1 message, got %d", n)
 	}

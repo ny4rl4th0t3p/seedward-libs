@@ -21,7 +21,8 @@ var signModes = map[string]struct {
 	invariant string
 	verify    modeVerifier
 }{
-	"SIGN_MODE_DIRECT": {InvSignatureDirect, VerifyDirect},
+	"SIGN_MODE_DIRECT":            {InvSignatureDirect, VerifyDirect},
+	"SIGN_MODE_LEGACY_AMINO_JSON": {InvSignatureAminoJSON, VerifyAminoJSON},
 }
 
 // CheckSignature is the heavy signature invariant: it dispatches to the

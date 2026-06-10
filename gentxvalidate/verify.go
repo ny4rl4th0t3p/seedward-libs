@@ -22,35 +22,49 @@ const (
 // A false return with nil error means the signature simply does not verify;
 // an error means the input couldn't be processed at all.
 func VerifyDirect(g *ParsedGentx, chainID string, accountNumber uint64) (bool, error) {
-	if g.Signer.PubKeyTypeURL != secp256k1PubKeyTypeURL {
-		return false, fmt.Errorf("gentxvalidate: unsupported account key type %q", g.Signer.PubKeyTypeURL)
+	if err := checkSingleSecpSigner(g); err != nil {
+		return false, err
 	}
-	if len(g.Signer.PubKey) != compressedPubKeyLen {
-		return false, fmt.Errorf("gentxvalidate: account pubkey must be %d bytes (compressed), got %d", compressedPubKeyLen, len(g.Signer.PubKey))
-	}
-	if len(g.Signature) != compactSigLen {
-		return false, fmt.Errorf("gentxvalidate: signature must be %d bytes (r||s compact), got %d", compactSigLen, len(g.Signature))
-	}
-
 	signBytes, err := DirectSignBytes(g, chainID, accountNumber)
 	if err != nil {
 		return false, err
 	}
+	return verifySecpCompact(g.Signer.PubKey, g.Signature, signBytes)
+}
 
-	pub, err := secp256k1.ParsePubKey(g.Signer.PubKey)
+// checkSingleSecpSigner gates the single-key secp256k1 signer shape shared by
+// the sign-mode verifiers (multisig signers arrive with Phase 2.3b).
+func checkSingleSecpSigner(g *ParsedGentx) error {
+	if g.Signer.PubKeyTypeURL != secp256k1PubKeyTypeURL {
+		return fmt.Errorf("gentxvalidate: unsupported account key type %q", g.Signer.PubKeyTypeURL)
+	}
+	if len(g.Signer.PubKey) != compressedPubKeyLen {
+		return fmt.Errorf("gentxvalidate: account pubkey must be %d bytes (compressed), got %d", compressedPubKeyLen, len(g.Signer.PubKey))
+	}
+	if len(g.Signature) != compactSigLen {
+		return fmt.Errorf("gentxvalidate: signature must be %d bytes (r||s compact), got %d", compactSigLen, len(g.Signature))
+	}
+	return nil
+}
+
+// verifySecpCompact verifies a 64-byte r||s signature over SHA256(signBytes)
+// against a compressed secp256k1 pubkey. False with nil error means the
+// signature does not verify (including r or s at/above the group order).
+func verifySecpCompact(pubKey, sig, signBytes []byte) (bool, error) {
+	pub, err := secp256k1.ParsePubKey(pubKey)
 	if err != nil {
 		return false, fmt.Errorf("gentxvalidate: parse account pubkey: %w", err)
 	}
 
 	var r, s secp256k1.ModNScalar
-	if overflow := r.SetByteSlice(g.Signature[:32]); overflow {
+	if overflow := r.SetByteSlice(sig[:32]); overflow {
 		return false, nil // r >= group order: not a valid signature
 	}
-	if overflow := s.SetByteSlice(g.Signature[32:]); overflow {
+	if overflow := s.SetByteSlice(sig[32:]); overflow {
 		return false, nil
 	}
-	sig := secpecdsa.NewSignature(&r, &s)
+	ecdsaSig := secpecdsa.NewSignature(&r, &s)
 
 	hash := sha256.Sum256(signBytes)
-	return sig.Verify(hash[:], pub), nil
+	return ecdsaSig.Verify(hash[:], pub), nil
 }

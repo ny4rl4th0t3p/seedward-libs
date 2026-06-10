@@ -23,6 +23,7 @@ const (
 	InvMoniker               = "moniker"
 	InvOperatorAddress       = "operator_address"
 	InvSignatureDirect       = "signature_direct"
+	InvSignatureAminoJSON    = "signature_amino_json"
 
 	// InvSignatureUnsupportedMode is reported by CheckSignature when the gentx
 	// declares a sign mode with no registered verifier. Per-mode signature
