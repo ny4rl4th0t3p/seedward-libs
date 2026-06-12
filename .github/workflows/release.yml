@@ -1,0 +1,39 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write # create the GitHub release and upload assets
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # goreleaser builds the changelog from git history
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      # A tag must not release what CI would reject.
+      - name: Tests (native)
+        run: make test
+      - name: Tests (WASM runtime parity)
+        run: make test-wasm
+      - name: Build blob and enforce the size budget
+        run: make wasm-size
+
+      - name: Release with goreleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ github.token }}

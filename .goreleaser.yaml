@@ -1,0 +1,74 @@
+version: 2
+
+project_name: seedward-libs
+
+builds:
+  - id: gentxvalidate-wasm
+    main: ./cmd/gentxvalidate-wasm
+    binary: gentxvalidate
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+    goos:
+      - js
+    goarch:
+      - wasm
+
+archives:
+  # format binary: the blob is released as a raw .wasm file, not a tarball —
+  # the web app fetches it directly.
+  - id: wasm
+    ids:
+      - gentxvalidate-wasm
+    formats: [binary]
+    name_template: "gentxvalidate_{{ .Version }}"
+  # and the same blob pre-compressed, for static serving (gzip_static / CDN).
+  - id: wasm-gz
+    ids:
+      - gentxvalidate-wasm
+    formats: [gz]
+    name_template: "gentxvalidate_{{ .Version }}.wasm"
+    # gz holds exactly one file; suppress the implicit README/LICENSE globs.
+    files:
+      - none*
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^chore"
+      - "^ci"
+      - "^Merge (pull request|branch)"
+  groups:
+    - title: Features
+      regexp: "^feat"
+      order: 0
+    - title: Bug Fixes
+      regexp: "^fix"
+      order: 1
+    - title: Performance
+      regexp: "^perf"
+      order: 2
+    - title: Refactors
+      regexp: "^refactor"
+      order: 3
+    - title: Documentation
+      regexp: "^docs"
+      order: 4
+    - title: Other
+      order: 999
+
+release:
+  github:
+    owner: ny4rl4th0t3p
+    name: seedward-libs
+  # wasm_exec.js is versioned with the Go toolchain; ship the matching copy
+  # next to the blob (placed by `make wasm`, which the workflow gates run).
+  extra_files:
+    - glob: ./web/demo/wasm_exec.js
