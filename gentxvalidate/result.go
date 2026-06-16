@@ -22,6 +22,7 @@ const (
 	InvCommissionBounds      = "commission_bounds"
 	InvMoniker               = "moniker"
 	InvOperatorAddress       = "operator_address"
+	InvConsensusPubKey       = "consensus_pubkey"
 	InvSignatureDirect       = "signature_direct"
 	InvSignatureAminoJSON    = "signature_amino_json"
 

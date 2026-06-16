@@ -30,6 +30,12 @@ type Params struct {
 	MinCommissionRate string `json:"min_commission_rate"`
 	MaxCommissionRate string `json:"max_commission_rate"`
 
+	// MaxCommissionChangeRate is the launch's ceiling for the gentx's commission
+	// max_change_rate, as a LegacyDec string. Empty means the launch declares no
+	// ceiling. Distinct from the internal-consistency check max_change_rate ≤
+	// max_rate (CheckCommissionChangeRate); this one gates against the launch.
+	MaxCommissionChangeRate string `json:"max_commission_change_rate"`
+
 	// MaxMonikerLen in bytes (matching the SDK's measure); 0 means
 	// DefaultMaxMonikerLen.
 	MaxMonikerLen int `json:"max_moniker_len"`

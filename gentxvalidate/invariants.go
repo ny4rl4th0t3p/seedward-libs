@@ -3,6 +3,7 @@ package gentxvalidate
 import (
 	"bytes"
 	"math/big"
+	"strings"
 	"unicode"
 	"unicode/utf8"
 )
@@ -117,9 +118,10 @@ func CheckCommissionChangeRate(g *ParsedGentx) Result {
 }
 
 // CheckCommissionBounds verifies commission against the launch's declared
-// bounds — rate ≥ floor (MinCommissionRate) and, if a ceiling is set,
-// rate/max_rate ≤ ceiling. This is the check that consumes Params and actually
-// gates; it is not implied by the consistency checks above.
+// bounds — rate ≥ floor (MinCommissionRate); if a rate ceiling is set,
+// rate/max_rate ≤ MaxCommissionRate; and if a change-rate ceiling is set,
+// max_change_rate ≤ MaxCommissionChangeRate. This is the check that consumes
+// Params and actually gates; it is not implied by the consistency checks above.
 func CheckCommissionBounds(g *ParsedGentx, p Params) Result {
 	rate, err := decValue(g.Msg.Commission.Rate, "commission.rate")
 	if err != nil {
@@ -150,6 +152,20 @@ func CheckCommissionBounds(g *ParsedGentx, p Params) Result {
 		}
 		if maxRate.Cmp(ceil) > 0 {
 			return fail(InvCommissionBounds, "max_rate %s above launch ceiling %s", g.Msg.Commission.MaxRate, p.MaxCommissionRate)
+		}
+	}
+
+	if p.MaxCommissionChangeRate != "" {
+		ceil, err := decValue(p.MaxCommissionChangeRate, "params.max_commission_change_rate")
+		if err != nil {
+			return fail(InvCommissionBounds, "%v", err)
+		}
+		maxChange, err := decValue(g.Msg.Commission.MaxChangeRate, "commission.max_change_rate")
+		if err != nil {
+			return fail(InvCommissionBounds, "%v", err)
+		}
+		if maxChange.Cmp(ceil) > 0 {
+			return fail(InvCommissionBounds, "max_change_rate %s above launch ceiling %s", g.Msg.Commission.MaxChangeRate, p.MaxCommissionChangeRate)
 		}
 	}
 
@@ -209,6 +225,27 @@ func CheckOperatorAddress(g *ParsedGentx, p Params) Result {
 		return fail(InvOperatorAddress, "delegator_address is not derived from the signing account")
 	}
 	return pass(InvOperatorAddress)
+}
+
+const (
+	// ed25519PubKeyTypeSuffix matches the consensus key @type by suffix, allowing
+	// chain-specific type-URL namespaces (cf. the MsgCreateValidator suffix match).
+	ed25519PubKeyTypeSuffix = "ed25519.PubKey"
+	// ed25519PubKeySize is the fixed length of an Ed25519 public key.
+	ed25519PubKeySize = 32
+)
+
+// CheckConsensusPubKey verifies the validator's consensus key is Ed25519 and
+// exactly 32 bytes — the only consensus key shape CometBFT accepts at genesis.
+// (The signature invariants cover the validator's *account* key, not this one.)
+func CheckConsensusPubKey(g *ParsedGentx) Result {
+	if !strings.HasSuffix(g.Msg.ConsensusPubKeyTypeURL, ed25519PubKeyTypeSuffix) {
+		return fail(InvConsensusPubKey, "consensus pubkey @type %q is not ed25519", g.Msg.ConsensusPubKeyTypeURL)
+	}
+	if len(g.Msg.ConsensusPubKey) != ed25519PubKeySize {
+		return fail(InvConsensusPubKey, "consensus pubkey must be %d bytes (ed25519), got %d", ed25519PubKeySize, len(g.Msg.ConsensusPubKey))
+	}
+	return pass(InvConsensusPubKey)
 }
 
 // CheckSignatureDirect is the SIGN_MODE_DIRECT signature invariant: sign-bytes

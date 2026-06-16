@@ -87,6 +87,12 @@ func TestInvariantsTable(t *testing.T) {
 			},
 		},
 		{
+			name:      "max_change_rate above launch ceiling",
+			invariant: InvCommissionBounds,
+			mutate:    func(g *ParsedGentx) { g.Msg.Commission.MaxChangeRate = "0.500000000000000000" }, // ≤ max_rate 1.0, so consistency holds
+			params:    func(p *Params) { p.MaxCommissionChangeRate = "0.050000000000000000" },
+		},
+		{
 			name:      "empty moniker",
 			invariant: InvMoniker,
 			mutate:    func(g *ParsedGentx) { g.Msg.Description.Moniker = "" },
@@ -124,6 +130,16 @@ func TestInvariantsTable(t *testing.T) {
 				// derived address no longer matches either encoded address.
 				g.Signer.PubKey[10] ^= 0x01
 			},
+		},
+		{
+			name:      "consensus pubkey wrong type",
+			invariant: InvConsensusPubKey,
+			mutate:    func(g *ParsedGentx) { g.Msg.ConsensusPubKeyTypeURL = "/cosmos.crypto.secp256k1.PubKey" },
+		},
+		{
+			name:      "consensus pubkey wrong length",
+			invariant: InvConsensusPubKey,
+			mutate:    func(g *ParsedGentx) { g.Msg.ConsensusPubKey = g.Msg.ConsensusPubKey[:31] },
 		},
 	}
 
@@ -167,8 +183,8 @@ func TestValidFixturePassesAll(t *testing.T) {
 	raw := readFixtureBytes(t, "gentx-Bi23Labs.json")
 
 	results := RunAll(raw, osmosisParams())
-	if len(results) != 9 { // well_formed + 7 light + signature_direct
-		t.Errorf("got %d results, want 9", len(results))
+	if len(results) != 10 { // well_formed + 8 light + signature_direct
+		t.Errorf("got %d results, want 10", len(results))
 	}
 	for _, r := range results {
 		if !r.OK {
@@ -184,8 +200,8 @@ func TestRunLightSubset(t *testing.T) {
 	raw := readFixtureBytes(t, "gentx-Bi23Labs.json")
 
 	results := RunLight(raw, osmosisParams())
-	if len(results) != 8 { // well_formed + 7 light, no signature
-		t.Errorf("got %d results, want 8", len(results))
+	if len(results) != 9 { // well_formed + 8 light, no signature
+		t.Errorf("got %d results, want 9", len(results))
 	}
 	for _, r := range results {
 		if r.Invariant == InvSignatureDirect {
@@ -240,6 +256,7 @@ func TestParamMisconfiguration(t *testing.T) {
 		{"negative min_self_delegation", CheckSelfDelegation, func(p *Params) { p.MinSelfDelegation = "-1" }},
 		{"invalid min_commission_rate", CheckCommissionBounds, func(p *Params) { p.MinCommissionRate = "abc" }},
 		{"invalid max_commission_rate", CheckCommissionBounds, func(p *Params) { p.MaxCommissionRate = "abc" }},
+		{"invalid max_commission_change_rate", CheckCommissionBounds, func(p *Params) { p.MaxCommissionChangeRate = "abc" }},
 	}
 
 	for _, tc := range cases {
@@ -272,6 +289,48 @@ func TestSignatureDirectEncodeError(t *testing.T) {
 	}
 	if r.Reason == "" {
 		t.Error("failed without a reason")
+	}
+}
+
+// TestCommissionChangeRateCeiling pins the max_change_rate launch ceiling at the
+// boundary (equality passes), over the ceiling (fails), and unset (passes).
+func TestCommissionChangeRateCeiling(t *testing.T) {
+	g := loadFixture(t)
+	p := osmosisParams()
+	g.Msg.Commission.MaxChangeRate = "0.050000000000000000"
+
+	p.MaxCommissionChangeRate = "0.050000000000000000" // equal — at the ceiling
+	if r := CheckCommissionBounds(g, p); !r.OK {
+		t.Errorf("max_change_rate at ceiling must pass: %s", r.Reason)
+	}
+
+	p.MaxCommissionChangeRate = "0.010000000000000000" // below the gentx's value
+	if r := CheckCommissionBounds(g, p); r.OK {
+		t.Error("max_change_rate above ceiling passed")
+	}
+
+	p.MaxCommissionChangeRate = "" // no ceiling declared
+	if r := CheckCommissionBounds(g, p); !r.OK {
+		t.Errorf("no declared change-rate ceiling must pass: %s", r.Reason)
+	}
+}
+
+// TestConsensusPubKey covers the ed25519/32-byte consensus-key invariant.
+func TestConsensusPubKey(t *testing.T) {
+	if r := CheckConsensusPubKey(loadFixture(t)); !r.OK {
+		t.Errorf("valid ed25519 consensus pubkey failed: %s", r.Reason)
+	}
+
+	wrongType := loadFixture(t)
+	wrongType.Msg.ConsensusPubKeyTypeURL = "/cosmos.crypto.secp256k1.PubKey"
+	if r := CheckConsensusPubKey(wrongType); r.OK {
+		t.Error("non-ed25519 consensus pubkey passed")
+	}
+
+	wrongLen := loadFixture(t)
+	wrongLen.Msg.ConsensusPubKey = wrongLen.Msg.ConsensusPubKey[:31]
+	if r := CheckConsensusPubKey(wrongLen); r.OK {
+		t.Error("31-byte consensus pubkey passed")
 	}
 }
 

@@ -15,6 +15,7 @@ func lightChecks(g *ParsedGentx, p Params) []Result {
 		CheckCommissionBounds(g, p),
 		CheckMoniker(g, p),
 		CheckOperatorAddress(g, p),
+		CheckConsensusPubKey(g),
 	}
 }
 

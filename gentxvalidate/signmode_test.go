@@ -61,8 +61,8 @@ func TestRunAllDispatchesByMode(t *testing.T) {
 	raw := readFixtureBytes(t, aminoFixtureName)
 
 	results := RunAll(raw, osmosisParams())
-	if len(results) != 9 { // well_formed + 7 light + signature dispatch
-		t.Fatalf("got %d results, want 9", len(results))
+	if len(results) != 10 { // well_formed + 8 light + signature dispatch
+		t.Fatalf("got %d results, want 10", len(results))
 	}
 	last := results[len(results)-1]
 	if last.Invariant != InvSignatureAminoJSON {

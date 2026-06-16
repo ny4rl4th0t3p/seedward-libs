@@ -38,6 +38,7 @@ func ExampleRunAll() {
 	// commission_bounds ok=true
 	// moniker ok=true
 	// operator_address ok=true
+	// consensus_pubkey ok=true
 	// signature_direct ok=true
 	// all ok: true
 }
