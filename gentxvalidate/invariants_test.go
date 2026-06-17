@@ -334,6 +334,16 @@ func TestConsensusPubKey(t *testing.T) {
 	}
 }
 
+// TestOperatorAddressEmptyDelegator: modern SDK (v0.50+) gentxs omit
+// delegator_address; operator_address must still pass on validator_address alone.
+func TestOperatorAddressEmptyDelegator(t *testing.T) {
+	g := loadFixture(t)
+	g.Msg.DelegatorAddress = ""
+	if r := CheckOperatorAddress(g, osmosisParams()); !r.OK {
+		t.Errorf("empty delegator_address must pass (deprecated field): %s", r.Reason)
+	}
+}
+
 func TestSelfDelegationEdges(t *testing.T) {
 	g := loadFixture(t)
 

@@ -194,23 +194,16 @@ func CheckMoniker(g *ParsedGentx, p Params) Result {
 	return pass(InvMoniker)
 }
 
-// CheckOperatorAddress verifies both addresses are bech32-valid under the
-// launch HRP (account prefix for delegator_address, +"valoper" for
-// validator_address) and that both are derived from the signing account:
-// RIPEMD160(SHA256(pubkey)) for secp256k1 keys, SHA256 over the amino-encoded
-// LegacyAminoPubKey for multisigs.
+// CheckOperatorAddress verifies validator_address is bech32-valid under the
+// launch HRP+"valoper" and derives from the signing account
+// (RIPEMD160(SHA256(pubkey)) for secp256k1, SHA256 over the amino-encoded
+// LegacyAminoPubKey for multisigs). delegator_address was deprecated in
+// MsgCreateValidator (SDK v0.50+) and is emitted empty by modern chains — the
+// self-delegator is the validator's own account — so it is validated only when
+// present (older gentxs still carry it).
 func CheckOperatorAddress(g *ParsedGentx, p Params) Result {
 	if p.Bech32Prefix == "" {
 		return fail(InvOperatorAddress, "params: bech32 prefix not set")
-	}
-
-	valBytes, err := decodeBech32Address(g.Msg.ValidatorAddress, p.Bech32Prefix+"valoper")
-	if err != nil {
-		return fail(InvOperatorAddress, "validator_address: %v", err)
-	}
-	delBytes, err := decodeBech32Address(g.Msg.DelegatorAddress, p.Bech32Prefix)
-	if err != nil {
-		return fail(InvOperatorAddress, "delegator_address: %v", err)
 	}
 
 	derived, err := signerAddressBytes(&g.Signer)
@@ -218,12 +211,24 @@ func CheckOperatorAddress(g *ParsedGentx, p Params) Result {
 		return fail(InvOperatorAddress, "cannot derive address: %v", err)
 	}
 
+	valBytes, err := decodeBech32Address(g.Msg.ValidatorAddress, p.Bech32Prefix+"valoper")
+	if err != nil {
+		return fail(InvOperatorAddress, "validator_address: %v", err)
+	}
 	if !bytes.Equal(valBytes, derived) {
 		return fail(InvOperatorAddress, "validator_address is not derived from the signing account")
 	}
-	if !bytes.Equal(delBytes, derived) {
-		return fail(InvOperatorAddress, "delegator_address is not derived from the signing account")
+
+	if g.Msg.DelegatorAddress != "" {
+		delBytes, err := decodeBech32Address(g.Msg.DelegatorAddress, p.Bech32Prefix)
+		if err != nil {
+			return fail(InvOperatorAddress, "delegator_address: %v", err)
+		}
+		if !bytes.Equal(delBytes, derived) {
+			return fail(InvOperatorAddress, "delegator_address is not derived from the signing account")
+		}
 	}
+
 	return pass(InvOperatorAddress)
 }
 
