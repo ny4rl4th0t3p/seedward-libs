@@ -1,0 +1,87 @@
+[
+  {
+    "description": "simple object — keys sorted",
+    "input": {
+      "z": 1,
+      "a": 2,
+      "m": 3
+    },
+    "expected": "{\"a\":2,\"m\":3,\"z\":1}"
+  },
+  {
+    "description": "nested object — keys sorted at every level",
+    "input": {
+      "z": {
+        "y": 1,
+        "a": 2
+      },
+      "a": {
+        "z": 3,
+        "b": 4
+      }
+    },
+    "expected": "{\"a\":{\"b\":4,\"z\":3},\"z\":{\"a\":2,\"y\":1}}"
+  },
+  {
+    "description": "array preserves order",
+    "input": {
+      "vals": [
+        3,
+        1,
+        2
+      ]
+    },
+    "expected": "{\"vals\":[3,1,2]}"
+  },
+  {
+    "description": "string values preserved",
+    "input": {
+      "chain_id": "mychain-1",
+      "denom": "utoken"
+    },
+    "expected": "{\"chain_id\":\"mychain-1\",\"denom\":\"utoken\"}"
+  },
+  {
+    "description": "null value",
+    "input": {
+      "genesis_time": null,
+      "chain_id": "x"
+    },
+    "expected": "{\"chain_id\":\"x\",\"genesis_time\":null}"
+  },
+  {
+    "description": "boolean values",
+    "input": {
+      "active": true,
+      "archived": false
+    },
+    "expected": "{\"active\":true,\"archived\":false}"
+  },
+  {
+    "description": "signature and pubkey_b64 stripped for signing; nonce kept",
+    "input": {
+      "chain_id": "x",
+      "nonce": "uuid",
+      "signature": "base64sig",
+      "pubkey_b64": "abc123",
+      "operator_address": "cosmos1abc"
+    },
+    "expected_for_signing": "{\"chain_id\":\"x\",\"nonce\":\"uuid\",\"operator_address\":\"cosmos1abc\"}"
+  },
+  {
+    "description": "deeply nested with array of objects",
+    "input": {
+      "members": [
+        {
+          "address": "cosmos1b",
+          "moniker": "val-b"
+        },
+        {
+          "address": "cosmos1a",
+          "moniker": "val-a"
+        }
+      ]
+    },
+    "expected": "{\"members\":[{\"address\":\"cosmos1b\",\"moniker\":\"val-b\"},{\"address\":\"cosmos1a\",\"moniker\":\"val-a\"}]}"
+  }
+]
