@@ -36,6 +36,33 @@ func accountAddressBytes(compressedPubKey []byte) []byte {
 	return h.Sum(nil)
 }
 
+// encodeBech32Address encodes a 20-byte address payload as bech32 with the given HRP.
+func encodeBech32Address(hrp string, payload []byte) (string, error) {
+	data5, err := bech32.ConvertBits(payload, 8, 5, true)
+	if err != nil {
+		return "", fmt.Errorf("convert bits: %w", err)
+	}
+	addr, err := bech32.Encode(hrp, data5)
+	if err != nil {
+		return "", fmt.Errorf("bech32 encode: %w", err)
+	}
+	return addr, nil
+}
+
+// AccountAddress returns the validator's self-delegation account address: the gentx's signing
+// account, bech32-encoded with hrp. It is the account form of the verified validator_address — the
+// same key bytes without the "valoper" suffix — and is the genesis-relevant validator identity (the
+// self-delegator). The address is derived from the gentx signer, so it is only meaningful once the
+// operator-address invariant has passed (RunAll + AllOK, which proves validator_address derives from
+// this same account).
+func (g *ParsedGentx) AccountAddress(hrp string) (string, error) {
+	b, err := signerAddressBytes(&g.Signer)
+	if err != nil {
+		return "", err
+	}
+	return encodeBech32Address(hrp, b)
+}
+
 // decodeBech32Address decodes addr, requiring the given HRP and a 20-byte
 // payload.
 func decodeBech32Address(addr, wantHRP string) ([]byte, error) {
