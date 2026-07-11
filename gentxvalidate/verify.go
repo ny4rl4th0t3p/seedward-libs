@@ -34,7 +34,7 @@ func VerifyDirect(g *ParsedGentx, chainID string, accountNumber uint64) (bool, e
 }
 
 // checkSingleSecpSigner gates the single-key secp256k1 signer shape shared by
-// the sign-mode verifiers (multisig signers arrive with Phase 2.3b).
+// the sign-mode verifiers (multisig signers are handled separately).
 func checkSingleSecpSigner(g *ParsedGentx) error {
 	if g.Signer.PubKeyTypeURL != secp256k1PubKeyTypeURL {
 		return fmt.Errorf("gentxvalidate: unsupported account key type %q", g.Signer.PubKeyTypeURL)

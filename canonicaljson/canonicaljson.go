@@ -6,8 +6,9 @@
 //   - UTF-8 encoding
 //   - Numbers without trailing zeros
 //   - Timestamps as RFC 3339 UTC with second precision ("2006-01-02T15:04:05Z")
-//   - The "signature" and "nonce" fields are excluded when signing (callers must
-//     strip them before passing to Marshal)
+//   - MarshalForSigning excludes the top-level "signature" and "pubkey_b64" fields
+//     (they are not part of the signed content); "nonce" is deliberately KEPT, binding
+//     the replay-protection nonce into the signature.
 package canonicaljson
 
 import (
@@ -26,7 +27,7 @@ func Marshal(v any) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("canonicaljson: marshal: %w", err)
 	}
-	return canonicalise(json.RawMessage(raw))
+	return canonicaliseRaw(raw)
 }
 
 // MarshalForSigning strips the "signature" and "pubkey_b64" fields from the
@@ -51,27 +52,10 @@ func MarshalForSigning(v any) ([]byte, error) {
 	delete(m, "signature")
 	delete(m, "pubkey_b64")
 
-	return canonicalise(m)
+	return serialiseObject(m)
 }
 
-// canonicalise recursively sorts object keys and removes all whitespace.
-func canonicalise(v any) ([]byte, error) {
-	switch val := v.(type) {
-	case map[string]json.RawMessage:
-		return serialiseObject(val)
-
-	case json.RawMessage:
-		return canonicaliseRaw(val)
-
-	default:
-		raw, err := json.Marshal(v)
-		if err != nil {
-			return nil, err
-		}
-		return canonicaliseRaw(raw)
-	}
-}
-
+// canonicaliseRaw recursively sorts object keys and removes all whitespace.
 func canonicaliseRaw(raw json.RawMessage) ([]byte, error) {
 	raw = bytes.TrimSpace(raw)
 	if len(raw) == 0 {

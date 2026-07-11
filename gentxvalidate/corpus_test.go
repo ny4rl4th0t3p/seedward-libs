@@ -3,8 +3,10 @@ package gentxvalidate
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // chainCorpora: every per-chain gentx corpus under testdata, with the launch
@@ -27,23 +29,15 @@ func TestChainCorpora(t *testing.T) {
 	for _, c := range chainCorpora {
 		t.Run(c.dir, func(t *testing.T) {
 			files, err := filepath.Glob(filepath.Join("testdata", c.dir, "*.json"))
-			if err != nil {
-				t.Fatal(err)
-			}
-			if len(files) == 0 {
-				t.Fatalf("corpus %s is empty", c.dir)
-			}
+			require.NoError(t, err)
+			require.NotEmpty(t, files, "corpus %s is empty", c.dir)
 
 			for _, f := range files {
 				t.Run(filepath.Base(f), func(t *testing.T) {
 					raw, err := os.ReadFile(f)
-					if err != nil {
-						t.Fatal(err)
-					}
+					require.NoError(t, err)
 					for _, r := range RunAll(raw, c.params) {
-						if !r.OK {
-							t.Errorf("%s failed: %s", r.Invariant, r.Reason)
-						}
+						assert.True(t, r.OK, "%s failed: %s", r.Invariant, r.Reason)
 					}
 				})
 			}
@@ -57,27 +51,19 @@ func TestChainCorpora(t *testing.T) {
 // the legacy format; none may panic or partially decode.
 func TestLegacyCorpusRejected(t *testing.T) {
 	files, err := filepath.Glob(filepath.Join("testdata", "cosmoshub-4-gentx", "*.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(files) == 0 {
-		t.Fatal("cosmoshub-4 corpus is empty")
-	}
+	require.NoError(t, err)
+	require.NotEmpty(t, files, "cosmoshub-4 corpus is empty")
 
 	p := Params{ChainID: "cosmoshub-4", BondDenom: "uatom", Bech32Prefix: "cosmos"}
 	for _, f := range files {
 		t.Run(filepath.Base(f), func(t *testing.T) {
 			raw, err := os.ReadFile(f)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 			results := RunAll(raw, p)
-			if len(results) != 1 || results[0].Invariant != InvWellFormed || results[0].OK {
-				t.Fatalf("want a single failed well_formed result, got %+v", results)
-			}
-			if !strings.Contains(results[0].Reason, "legacy StdTx") {
-				t.Errorf("reason %q does not identify the legacy format", results[0].Reason)
-			}
+			require.Len(t, results, 1, "want a single well_formed result")
+			assert.Equal(t, InvWellFormed, results[0].Invariant)
+			assert.False(t, results[0].OK)
+			assert.Contains(t, results[0].Reason, "legacy StdTx", "reason does not identify the legacy format")
 		})
 	}
 }
@@ -89,25 +75,14 @@ func TestSparseBitarrayMultisig(t *testing.T) {
 	g := loadFixtureNamed(t, "gentx-iqlusion.json")
 
 	ms := g.Signer.Multisig
-	if ms == nil {
-		t.Fatal("Signer.Multisig is nil")
-	}
-	if ms.Threshold != 2 || len(ms.Members) != 3 || len(ms.Modes) != 2 {
-		t.Errorf("threshold/members/modes = %d/%d/%d, want 2/3/2",
-			ms.Threshold, len(ms.Members), len(ms.Modes))
-	}
-	if got := ms.bitCount(); got != 3 {
-		t.Errorf("bitCount = %d, want 3", got)
-	}
-	if idx := ms.signerIndices(); len(idx) != 2 || idx[0] != 0 || idx[1] != 2 {
-		t.Errorf("signerIndices = %v, want [0 2]", idx)
-	}
+	require.NotNil(t, ms, "Signer.Multisig is nil")
+	assert.Equal(t, uint32(2), ms.Threshold)
+	assert.Len(t, ms.Members, 3)
+	assert.Len(t, ms.Modes, 2)
+	assert.Equal(t, 3, ms.bitCount())
+	assert.Equal(t, []int{0, 2}, ms.signerIndices())
 
 	ok, err := VerifyAminoJSON(g, "osmosis-1", 0)
-	if err != nil {
-		t.Fatalf("VerifyAminoJSON: %v", err)
-	}
-	if !ok {
-		t.Fatal("sparse multisig signature did not verify")
-	}
+	require.NoError(t, err)
+	require.True(t, ok, "sparse multisig signature did not verify")
 }

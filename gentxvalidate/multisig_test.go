@@ -1,12 +1,16 @@
 package gentxvalidate
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
 
 // The fixture is a real osmosis-1 mainnet gentx signed by a 2-of-2
 // LegacyAminoPubKey multisig in amino mode. It verifies only if the StdSignDoc
 // bytes are byte-exact (proven independently by the single-sig amino fixture)
-// AND the MultiSignature envelope, bitarray, and threshold logic are right —
-// the layered-oracle design from the phase 2 plan.
+// AND the MultiSignature envelope, bitarray, and threshold logic are right.
 const multisigFixtureName = "gentx-Stargaze.json"
 
 // TestMultisigOperatorAddress: the fixture's own bech32 addresses are the
@@ -16,9 +20,7 @@ func TestMultisigOperatorAddress(t *testing.T) {
 	g := loadFixtureNamed(t, multisigFixtureName)
 
 	r := CheckOperatorAddress(g, osmosisParams())
-	if !r.OK {
-		t.Fatalf("operator_address failed: %s", r.Reason)
-	}
+	require.True(t, r.OK, "operator_address failed: %s", r.Reason)
 }
 
 // TestRunAllMultisigFullPass: with address derivation in place, the multisig
@@ -28,9 +30,7 @@ func TestRunAllMultisigFullPass(t *testing.T) {
 
 	results := RunAll(raw, osmosisParams())
 	for _, r := range results {
-		if !r.OK {
-			t.Errorf("%s failed: %s", r.Invariant, r.Reason)
-		}
+		assert.True(t, r.OK, "%s failed: %s", r.Invariant, r.Reason)
 	}
 }
 
@@ -39,66 +39,41 @@ func TestMultisigAddressErrors(t *testing.T) {
 	g.Signer.Multisig.Members[0].PubKeyTypeURL = "/cosmos.crypto.sr25519.PubKey"
 
 	r := CheckOperatorAddress(g, osmosisParams())
-	if r.OK {
-		t.Error("unknown member key type passed operator_address")
-	}
+	assert.False(t, r.OK, "unknown member key type passed operator_address")
 }
 
 func TestMultisigDecode(t *testing.T) {
 	g := loadFixtureNamed(t, multisigFixtureName)
 
 	ms := g.Signer.Multisig
-	if ms == nil {
-		t.Fatal("Signer.Multisig is nil")
-	}
-	if g.Signer.PubKeyTypeURL != legacyAminoPubKeyTypeURL {
-		t.Errorf("signer type = %q", g.Signer.PubKeyTypeURL)
-	}
-	if g.Signer.Mode != "SIGN_MODE_LEGACY_AMINO_JSON" {
-		t.Errorf("mode = %q", g.Signer.Mode)
-	}
-	if ms.Threshold != 2 || len(ms.Members) != 2 || len(ms.Modes) != 2 {
-		t.Errorf("threshold/members/modes = %d/%d/%d, want 2/2/2",
-			ms.Threshold, len(ms.Members), len(ms.Modes))
-	}
+	require.NotNil(t, ms, "Signer.Multisig is nil")
+	assert.Equal(t, legacyAminoPubKeyTypeURL, g.Signer.PubKeyTypeURL)
+	assert.Equal(t, "SIGN_MODE_LEGACY_AMINO_JSON", g.Signer.Mode)
+	assert.Equal(t, uint32(2), ms.Threshold)
+	assert.Len(t, ms.Members, 2)
+	assert.Len(t, ms.Modes, 2)
 	for i, m := range ms.Members {
-		if m.PubKeyTypeURL != secp256k1PubKeyTypeURL {
-			t.Errorf("member %d key type = %q", i, m.PubKeyTypeURL)
-		}
-		if len(m.PubKey) != 33 {
-			t.Errorf("member %d pubkey = %d bytes, want 33", i, len(m.PubKey))
-		}
+		assert.Equal(t, secp256k1PubKeyTypeURL, m.PubKeyTypeURL, "member %d key type", i)
+		assert.Len(t, m.PubKey, 33, "member %d pubkey length", i)
 	}
-	if got := ms.bitCount(); got != 2 {
-		t.Errorf("bitCount = %d, want 2", got)
-	}
-	if idx := ms.signerIndices(); len(idx) != 2 || idx[0] != 0 || idx[1] != 1 {
-		t.Errorf("signerIndices = %v, want [0 1]", idx)
-	}
+	assert.Equal(t, 2, ms.bitCount())
+	assert.Equal(t, []int{0, 1}, ms.signerIndices())
 }
 
 func TestVerifyMultisigMainnetSignature(t *testing.T) {
 	g := loadFixtureNamed(t, multisigFixtureName)
 
 	ok, err := VerifyAminoJSON(g, fixtureChainID, fixtureAccNum)
-	if err != nil {
-		t.Fatalf("VerifyAminoJSON: %v", err)
-	}
-	if !ok {
-		t.Fatal("mainnet multisig signature did not verify")
-	}
+	require.NoError(t, err)
+	require.True(t, ok, "mainnet multisig signature did not verify")
 }
 
 func TestCheckSignatureMultisig(t *testing.T) {
 	g := loadFixtureNamed(t, multisigFixtureName)
 
 	r := CheckSignature(g, osmosisParams())
-	if r.Invariant != InvSignatureAminoJSON {
-		t.Errorf("invariant = %q, want %q", r.Invariant, InvSignatureAminoJSON)
-	}
-	if !r.OK {
-		t.Errorf("valid multisig fixture failed: %s", r.Reason)
-	}
+	assert.Equal(t, InvSignatureAminoJSON, r.Invariant) //nolint:testifylint // invariant ID constant, not encoded JSON
+	assert.True(t, r.OK, "valid multisig fixture failed: %s", r.Reason)
 }
 
 func TestVerifyMultisigRejectsTamper(t *testing.T) {
@@ -121,19 +96,15 @@ func TestVerifyMultisigRejectsTamper(t *testing.T) {
 			g := loadFixtureNamed(t, multisigFixtureName)
 			tc.mutate(g)
 			ok, err := VerifyAminoJSON(g, tc.chainID, fixtureAccNum)
-			if err != nil {
-				t.Fatalf("VerifyAminoJSON: %v", err)
-			}
-			if ok {
-				t.Fatal("tampered multisig gentx verified — verification is not sound")
-			}
+			require.NoError(t, err)
+			require.False(t, ok, "tampered multisig gentx verified — verification is not sound")
 		})
 	}
 }
 
 // TestVerifyMultisigErrors: inputs that cannot be processed return an error.
-// The component-mode case is the "multisig DIRECT" rejection from the phase 2
-// plan — mutated in-test because such a gentx cannot exist on a real chain.
+// The component-mode case is a "multisig DIRECT" rejection — mutated in-test
+// because such a gentx cannot exist on a real chain.
 func TestVerifyMultisigErrors(t *testing.T) {
 	cases := []struct {
 		name   string
@@ -152,9 +123,8 @@ func TestVerifyMultisigErrors(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			g := loadFixtureNamed(t, multisigFixtureName)
 			tc.mutate(g)
-			if _, err := VerifyAminoJSON(g, fixtureChainID, fixtureAccNum); err == nil {
-				t.Fatal("expected error")
-			}
+			_, err := VerifyAminoJSON(g, fixtureChainID, fixtureAccNum)
+			require.Error(t, err, "expected error")
 		})
 	}
 }
@@ -184,9 +154,8 @@ func TestMultisigDecodeRejects(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if _, err := Decode([]byte(tc.json)); err == nil {
-				t.Fatal("expected error")
-			}
+			_, err := Decode([]byte(tc.json))
+			require.Error(t, err, "expected error")
 		})
 	}
 }

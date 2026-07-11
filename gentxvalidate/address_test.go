@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/cosmos/btcutil/bech32"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestDecodeBech32AddressPayloadLength: a valid bech32 string under the right
@@ -11,15 +13,10 @@ import (
 // address length.
 func TestDecodeBech32AddressPayloadLength(t *testing.T) {
 	data5, err := bech32.ConvertBits(make([]byte, accountAddrLen+1), 8, 5, true)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	addr, err := bech32.Encode("osmo", data5)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
-	if _, err := decodeBech32Address(addr, "osmo"); err == nil {
-		t.Error("21-byte payload decoded without error")
-	}
+	_, err = decodeBech32Address(addr, "osmo")
+	assert.Error(t, err, "21-byte payload decoded without error")
 }

@@ -17,7 +17,7 @@ signatures fail).
 | `osmosis-1-gentx/`   | osmosis-1 (Jun 2021)         | full validation corpus: 26 DIRECT, 11 amino, one 2-of-2 multisig (`gentx-Stargaze.json`), one sparse 2-of-3 multisig (`gentx-iqlusion.json`) | github.com/osmosis-labs/networks   |
 | `juno-1-gentx/`      | juno-1 (Oct 2021)            | full validation corpus, second chain (HRP `juno`, denom `ujuno`)                                                                             | github.com/CosmosContracts/mainnet |
 | `stargaze-1-gentx/`  | stargaze-1 (Oct 2021)        | full validation corpus, third chain (HRP `stars`, denom `ustars`)                                                                            | github.com/public-awesome/mainnet  |
-| `cosmoshub-4-gentx/` | cosmos hub (2019 launch era) | **rejection corpus**: legacy pre-protobuf StdTx JSON, out of scope by decision (spec §1) — every file must fail `well_formed` cleanly        | github.com/cosmos/mainnet          |
+| `cosmoshub-4-gentx/` | cosmos hub (2019 launch era) | **rejection corpus**: legacy pre-protobuf StdTx JSON, out of scope by decision — every file must fail `well_formed` cleanly                  | github.com/cosmos/mainnet          |
 
 Retrieved 2026-06-10 from the chains' public launch repositories. The data is
 public chain history: public keys, signatures, addresses, and validator

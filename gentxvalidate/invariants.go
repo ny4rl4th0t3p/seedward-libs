@@ -8,7 +8,7 @@ import (
 	"unicode/utf8"
 )
 
-// Per-invariant pure functions (spec §3): each takes (ParsedGentx, Params) and
+// Per-invariant pure functions: each takes (ParsedGentx, Params) and
 // returns a structured Result. Invariants never panic — malformed input is a
 // failed result, not a crash.
 
@@ -33,9 +33,8 @@ func decValue(s, field string) (*big.Int, error) {
 
 // CheckChainID compares a claimed chain-id against the launch's. The gentx
 // JSON itself does not carry a chain-id (it is a sign-time input), so this
-// check applies to submission envelopes that claim one — coordd's case, the
-// porting target for chaincoord's structural check. For the gentx itself the
-// chain-id is enforced cryptographically by CheckSignatureDirect.
+// check applies to a submission envelope that claims one. For the gentx itself
+// the chain-id is enforced cryptographically by CheckSignatureDirect.
 func CheckChainID(claimed string, p Params) Result {
 	if p.ChainID == "" {
 		return fail(InvChainID, "params: chain-id not set")

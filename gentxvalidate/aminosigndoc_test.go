@@ -1,6 +1,11 @@
 package gentxvalidate
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
 
 // The fixture is a real osmosis-1 mainnet gentx signed with
 // SIGN_MODE_LEGACY_AMINO_JSON by a single secp256k1 key. Same oracle logic as
@@ -13,12 +18,8 @@ func TestVerifyAminoMainnetSignature(t *testing.T) {
 	g := loadFixtureNamed(t, aminoFixtureName)
 
 	ok, err := VerifyAminoJSON(g, fixtureChainID, fixtureAccNum)
-	if err != nil {
-		t.Fatalf("VerifyAminoJSON: %v", err)
-	}
-	if !ok {
-		t.Fatal("mainnet amino signature did not verify — StdSignDoc reconstruction is not byte-exact")
-	}
+	require.NoError(t, err)
+	require.True(t, ok, "mainnet amino signature did not verify — StdSignDoc reconstruction is not byte-exact")
 }
 
 func TestVerifyAminoRejectsTamper(t *testing.T) {
@@ -40,12 +41,8 @@ func TestVerifyAminoRejectsTamper(t *testing.T) {
 			g := loadFixtureNamed(t, aminoFixtureName)
 			tc.mutate(g)
 			ok, err := VerifyAminoJSON(g, tc.chainID, fixtureAccNum)
-			if err != nil {
-				t.Fatalf("VerifyAminoJSON: %v", err)
-			}
-			if ok {
-				t.Fatal("tampered amino gentx verified — verification is not sound")
-			}
+			require.NoError(t, err)
+			require.False(t, ok, "tampered amino gentx verified — verification is not sound")
 		})
 	}
 }
@@ -53,16 +50,14 @@ func TestVerifyAminoRejectsTamper(t *testing.T) {
 func TestAminoSignBytesErrors(t *testing.T) {
 	t.Run("rejects non-amino mode", func(t *testing.T) {
 		g := loadFixture(t) // DIRECT fixture
-		if _, err := AminoSignBytes(g, fixtureChainID, fixtureAccNum); err == nil {
-			t.Error("DIRECT-mode gentx accepted")
-		}
+		_, err := AminoSignBytes(g, fixtureChainID, fixtureAccNum)
+		assert.Error(t, err, "DIRECT-mode gentx accepted")
 	})
 
 	t.Run("rejects unknown consensus key type", func(t *testing.T) {
 		g := loadFixtureNamed(t, aminoFixtureName)
 		g.Msg.ConsensusPubKeyTypeURL = "/cosmos.crypto.sr25519.PubKey"
-		if _, err := AminoSignBytes(g, fixtureChainID, fixtureAccNum); err == nil {
-			t.Error("unknown consensus key type accepted")
-		}
+		_, err := AminoSignBytes(g, fixtureChainID, fixtureAccNum)
+		assert.Error(t, err, "unknown consensus key type accepted")
 	})
 }

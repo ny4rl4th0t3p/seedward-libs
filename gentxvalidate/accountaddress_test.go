@@ -1,8 +1,10 @@
 package gentxvalidate
 
 import (
-	"bytes"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestAccountAddress: the account address derives from the gentx signer, encodes to bech32 under
@@ -13,23 +15,16 @@ func TestAccountAddress(t *testing.T) {
 	g := &ParsedGentx{Signer: SignerInfo{PubKeyTypeURL: secp256k1PubKeyTypeURL, PubKey: pub}}
 
 	addr, err := g.AccountAddress("cosmos")
-	if err != nil {
-		t.Fatalf("AccountAddress: %v", err)
-	}
+	require.NoError(t, err)
 
 	got, err := decodeBech32Address(addr, "cosmos")
-	if err != nil {
-		t.Fatalf("decode %q: %v", addr, err)
-	}
-	if want := accountAddressBytes(pub); !bytes.Equal(got, want) {
-		t.Errorf("address bytes mismatch:\n got:  %x\n want: %x", got, want)
-	}
+	require.NoError(t, err, "decode %q", addr)
+	assert.Equal(t, accountAddressBytes(pub), got, "address bytes mismatch")
 }
 
 // TestAccountAddressUnsupportedKey: an unsupported account key type is an error, not a panic.
 func TestAccountAddressUnsupportedKey(t *testing.T) {
 	g := &ParsedGentx{Signer: SignerInfo{PubKeyTypeURL: "/not.a.real.Key", PubKey: make([]byte, compressedPubKeyLen)}}
-	if _, err := g.AccountAddress("cosmos"); err == nil {
-		t.Error("expected error for unsupported account key type, got nil")
-	}
+	_, err := g.AccountAddress("cosmos")
+	assert.Error(t, err, "expected error for unsupported account key type")
 }

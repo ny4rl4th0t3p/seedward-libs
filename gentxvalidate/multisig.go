@@ -1,6 +1,6 @@
 package gentxvalidate
 
-// LegacyAminoPubKey (multisig) verification — Phase 2.3b. A multisig gentx
+// LegacyAminoPubKey (multisig) verification. A multisig gentx
 // signer carries a CompactBitArray marking which component keys signed and a
 // MultiSignature protobuf envelope holding one compact signature per set bit.
 // Every present signature must verify over the same amino sign bytes, and at

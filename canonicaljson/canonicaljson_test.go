@@ -79,3 +79,15 @@ func TestMarshalForSigningRequiresObject(t *testing.T) {
 	_, err := canonicaljson.MarshalForSigning([]int{1, 2, 3})
 	require.Error(t, err)
 }
+
+// An unmarshalable value (chan/func) must surface as a wrapped error, never a
+// panic — the caller-facing contract for both entry points.
+func TestMarshalRejectsUnmarshalableValue(t *testing.T) {
+	_, err := canonicaljson.Marshal(make(chan int))
+	require.Error(t, err)
+}
+
+func TestMarshalForSigningRejectsUnmarshalableValue(t *testing.T) {
+	_, err := canonicaljson.MarshalForSigning(make(chan int))
+	require.Error(t, err)
+}

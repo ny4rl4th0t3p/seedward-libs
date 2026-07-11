@@ -1,9 +1,8 @@
 package gentxvalidate
 
-// Runners compose the per-invariant functions (spec §3). Subset membership is
-// a build/runner concern, not a code fork: RunLight is the advisory subset
-// (CLI / WASM); RunAll is the server set. Phase 2 extends RunAll with the
-// remaining heavy and server-only checks.
+// Runners compose the per-invariant functions. Subset membership is a runner
+// concern, not a code fork: RunLight is the advisory subset (CLI / WASM);
+// RunAll is the server set, adding the heavy signature check.
 
 // lightChecks runs every light invariant over an already-decoded gentx.
 func lightChecks(g *ParsedGentx, p Params) []Result {
@@ -31,7 +30,7 @@ func RunLight(raw []byte, p Params) []Result {
 }
 
 // RunAll decodes raw and runs the light set plus the heavy signature check,
-// dispatched by the gentx's declared sign mode (spec §5).
+// dispatched by the gentx's declared sign mode.
 func RunAll(raw []byte, p Params) []Result {
 	g, err := Decode(raw)
 	if err != nil {

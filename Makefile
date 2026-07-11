@@ -1,6 +1,7 @@
 GO            ?= go
 PKGS          := ./...
 COVERPROFILE  := coverage.out
+FUZZTIME      ?= 30s
 WASM_OUT      := web/demo/gentxvalidate.wasm
 WASM_BUDGET   := 2097152 # 2 MB gzipped
 WASM_EXEC_DIR  = $(shell $(GO) env GOROOT)/lib/wasm
@@ -30,6 +31,10 @@ cover: ## Run tests with coverage summary
 cover-html: ## Open per-line coverage report in the browser
 	$(GO) test $(PKGS) -coverprofile=$(COVERPROFILE) --count=1
 	$(GO) tool cover -html=$(COVERPROFILE)
+
+.PHONY: fuzz
+fuzz: ## Actively fuzz the decoder (override duration: make fuzz FUZZTIME=2m)
+	$(GO) test ./gentxvalidate -run '^$$' -fuzz=FuzzDecode -fuzztime=$(FUZZTIME)
 
 .PHONY: lint
 lint: ## Run golangci-lint (cleans lint cache first)

@@ -3,6 +3,9 @@ package gentxvalidate
 import (
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // osmosisParams are launch params the mainnet fixture satisfies.
@@ -24,12 +27,12 @@ func findResult(t *testing.T, results []Result, invariant string) Result {
 			return r
 		}
 	}
-	t.Fatalf("no result for invariant %q", invariant)
+	require.Failf(t, "invariant not found", "no result for invariant %q", invariant)
 	return Result{}
 }
 
-// TestInvariantsTable: the valid fixture plus one deliberately-broken case per
-// invariant (spec §6).
+// TestInvariantsTable: the valid fixture plus one deliberately broken case per
+// invariant.
 func TestInvariantsTable(t *testing.T) {
 	cases := []struct {
 		name      string
@@ -157,12 +160,8 @@ func TestInvariantsTable(t *testing.T) {
 			results := append(lightChecks(g, p), CheckSignatureDirect(g, p))
 
 			r := findResult(t, results, tc.invariant)
-			if r.OK {
-				t.Errorf("%s passed, want failure", tc.invariant)
-			}
-			if r.Reason == "" {
-				t.Errorf("%s failed without a reason", tc.invariant)
-			}
+			assert.False(t, r.OK, "%s passed, want failure", tc.invariant)
+			assert.NotEmpty(t, r.Reason, "%s failed without a reason", tc.invariant)
 
 			// Every *other* light invariant must be unaffected by this break —
 			// checks are independent by design. (signature_direct may also
@@ -171,9 +170,7 @@ func TestInvariantsTable(t *testing.T) {
 				if other.Invariant == tc.invariant || other.Invariant == InvSignatureDirect {
 					continue
 				}
-				if !other.OK {
-					t.Errorf("unrelated invariant %s also failed: %s", other.Invariant, other.Reason)
-				}
+				assert.True(t, other.OK, "unrelated invariant %s also failed: %s", other.Invariant, other.Reason)
 			}
 		})
 	}
@@ -183,62 +180,42 @@ func TestValidFixturePassesAll(t *testing.T) {
 	raw := readFixtureBytes(t, "gentx-Bi23Labs.json")
 
 	results := RunAll(raw, osmosisParams())
-	if len(results) != 10 { // well_formed + 8 light + signature_direct
-		t.Errorf("got %d results, want 10", len(results))
-	}
+	assert.Len(t, results, 10) // well_formed + 8 light + signature_direct
 	for _, r := range results {
-		if !r.OK {
-			t.Errorf("%s failed: %s", r.Invariant, r.Reason)
-		}
+		assert.True(t, r.OK, "%s failed: %s", r.Invariant, r.Reason)
 	}
-	if !AllOK(results) {
-		t.Error("AllOK = false for the valid fixture")
-	}
+	assert.True(t, AllOK(results), "AllOK = false for the valid fixture")
 }
 
 func TestRunLightSubset(t *testing.T) {
 	raw := readFixtureBytes(t, "gentx-Bi23Labs.json")
 
 	results := RunLight(raw, osmosisParams())
-	if len(results) != 9 { // well_formed + 8 light, no signature
-		t.Errorf("got %d results, want 9", len(results))
-	}
+	assert.Len(t, results, 9) // well_formed + 8 light, no signature
 	for _, r := range results {
-		if r.Invariant == InvSignatureDirect {
-			t.Error("RunLight must not include signature_direct")
-		}
+		assert.NotEqual(t, InvSignatureDirect, r.Invariant, "RunLight must not include signature_direct")
 	}
-	if !AllOK(results) {
-		t.Error("light subset failed on the valid fixture")
-	}
+	assert.True(t, AllOK(results), "light subset failed on the valid fixture")
 }
 
 func TestRunnersRejectMalformed(t *testing.T) {
 	for _, runner := range []func([]byte, Params) []Result{RunLight, RunAll} {
 		results := runner([]byte("not json"), osmosisParams())
-		if len(results) != 1 {
-			t.Fatalf("got %d results for malformed input, want 1", len(results))
-		}
-		if results[0].Invariant != InvWellFormed || results[0].OK {
-			t.Errorf("malformed input: got %+v, want failed well_formed", results[0])
-		}
+		require.Len(t, results, 1)
+		assert.Equal(t, InvWellFormed, results[0].Invariant)
+		assert.False(t, results[0].OK)
 	}
 }
 
 func TestCheckChainID(t *testing.T) {
 	p := osmosisParams()
-	if r := CheckChainID("osmosis-1", p); !r.OK {
-		t.Errorf("matching chain-id failed: %s", r.Reason)
-	}
-	if r := CheckChainID("juno-1", p); r.OK {
-		t.Error("mismatched chain-id passed")
-	}
-	if r := CheckChainID("", p); r.OK {
-		t.Error("empty claimed chain-id passed")
-	}
-	if r := CheckChainID("osmosis-1", Params{}); r.OK {
-		t.Error("unset launch chain-id passed")
-	}
+
+	r := CheckChainID("osmosis-1", p)
+	assert.True(t, r.OK, "matching chain-id failed: %s", r.Reason)
+
+	assert.False(t, CheckChainID("juno-1", p).OK, "mismatched chain-id passed")
+	assert.False(t, CheckChainID("", p).OK, "empty claimed chain-id passed")
+	assert.False(t, CheckChainID("osmosis-1", Params{}).OK, "unset launch chain-id passed")
 }
 
 // TestParamMisconfiguration: checks that consume Params must fail cleanly —
@@ -266,12 +243,8 @@ func TestParamMisconfiguration(t *testing.T) {
 			tc.params(&p)
 
 			r := tc.check(g, p)
-			if r.OK {
-				t.Error("check passed, want failure")
-			}
-			if r.Reason == "" {
-				t.Error("check failed without a reason")
-			}
+			assert.False(t, r.OK, "check passed, want failure")
+			assert.NotEmpty(t, r.Reason, "check failed without a reason")
 		})
 	}
 }
@@ -284,12 +257,8 @@ func TestSignatureDirectEncodeError(t *testing.T) {
 	g.Msg.Commission.Rate = "abc"
 
 	r := CheckSignatureDirect(g, osmosisParams())
-	if r.OK {
-		t.Error("unencodable commission rate passed signature_direct")
-	}
-	if r.Reason == "" {
-		t.Error("failed without a reason")
-	}
+	assert.False(t, r.OK, "unencodable commission rate passed signature_direct")
+	assert.NotEmpty(t, r.Reason, "failed without a reason")
 }
 
 // TestCommissionChangeRateCeiling pins the max_change_rate launch ceiling at the
@@ -300,38 +269,29 @@ func TestCommissionChangeRateCeiling(t *testing.T) {
 	g.Msg.Commission.MaxChangeRate = "0.050000000000000000"
 
 	p.MaxCommissionChangeRate = "0.050000000000000000" // equal — at the ceiling
-	if r := CheckCommissionBounds(g, p); !r.OK {
-		t.Errorf("max_change_rate at ceiling must pass: %s", r.Reason)
-	}
+	r := CheckCommissionBounds(g, p)
+	assert.True(t, r.OK, "max_change_rate at ceiling must pass: %s", r.Reason)
 
 	p.MaxCommissionChangeRate = "0.010000000000000000" // below the gentx's value
-	if r := CheckCommissionBounds(g, p); r.OK {
-		t.Error("max_change_rate above ceiling passed")
-	}
+	assert.False(t, CheckCommissionBounds(g, p).OK, "max_change_rate above ceiling passed")
 
 	p.MaxCommissionChangeRate = "" // no ceiling declared
-	if r := CheckCommissionBounds(g, p); !r.OK {
-		t.Errorf("no declared change-rate ceiling must pass: %s", r.Reason)
-	}
+	r = CheckCommissionBounds(g, p)
+	assert.True(t, r.OK, "no declared change-rate ceiling must pass: %s", r.Reason)
 }
 
 // TestConsensusPubKey covers the ed25519/32-byte consensus-key invariant.
 func TestConsensusPubKey(t *testing.T) {
-	if r := CheckConsensusPubKey(loadFixture(t)); !r.OK {
-		t.Errorf("valid ed25519 consensus pubkey failed: %s", r.Reason)
-	}
+	r := CheckConsensusPubKey(loadFixture(t))
+	assert.True(t, r.OK, "valid ed25519 consensus pubkey failed: %s", r.Reason)
 
 	wrongType := loadFixture(t)
 	wrongType.Msg.ConsensusPubKeyTypeURL = "/cosmos.crypto.secp256k1.PubKey"
-	if r := CheckConsensusPubKey(wrongType); r.OK {
-		t.Error("non-ed25519 consensus pubkey passed")
-	}
+	assert.False(t, CheckConsensusPubKey(wrongType).OK, "non-ed25519 consensus pubkey passed")
 
 	wrongLen := loadFixture(t)
 	wrongLen.Msg.ConsensusPubKey = wrongLen.Msg.ConsensusPubKey[:31]
-	if r := CheckConsensusPubKey(wrongLen); r.OK {
-		t.Error("31-byte consensus pubkey passed")
-	}
+	assert.False(t, CheckConsensusPubKey(wrongLen).OK, "31-byte consensus pubkey passed")
 }
 
 // TestOperatorAddressEmptyDelegator: modern SDK (v0.50+) gentxs omit
@@ -339,9 +299,8 @@ func TestConsensusPubKey(t *testing.T) {
 func TestOperatorAddressEmptyDelegator(t *testing.T) {
 	g := loadFixture(t)
 	g.Msg.DelegatorAddress = ""
-	if r := CheckOperatorAddress(g, osmosisParams()); !r.OK {
-		t.Errorf("empty delegator_address must pass (deprecated field): %s", r.Reason)
-	}
+	r := CheckOperatorAddress(g, osmosisParams())
+	assert.True(t, r.OK, "empty delegator_address must pass (deprecated field): %s", r.Reason)
 }
 
 func TestSelfDelegationEdges(t *testing.T) {
@@ -349,14 +308,11 @@ func TestSelfDelegationEdges(t *testing.T) {
 
 	p := osmosisParams()
 	p.MinSelfDelegation = "" // launch declares no floor
-	if r := CheckSelfDelegation(g, p); !r.OK {
-		t.Errorf("no declared floor must pass: %s", r.Reason)
-	}
+	r := CheckSelfDelegation(g, p)
+	assert.True(t, r.OK, "no declared floor must pass: %s", r.Reason)
 
 	g.Msg.Value.Amount = "abc"
-	if r := CheckSelfDelegation(g, osmosisParams()); r.OK {
-		t.Error("invalid self-bond amount passed")
-	}
+	assert.False(t, CheckSelfDelegation(g, osmosisParams()).OK, "invalid self-bond amount passed")
 }
 
 // TestSignatureCatchesPlausibleTamper: a tampered gentx that satisfies every
@@ -368,11 +324,7 @@ func TestSignatureCatchesPlausibleTamper(t *testing.T) {
 	g.Msg.Description.Moniker = "Totally Legit Labs" // a perfectly valid moniker
 
 	for _, r := range lightChecks(g, p) {
-		if !r.OK {
-			t.Fatalf("light invariant %s rejected the plausible tamper: %s", r.Invariant, r.Reason)
-		}
+		require.True(t, r.OK, "light invariant %s rejected the plausible tamper: %s", r.Invariant, r.Reason)
 	}
-	if r := CheckSignatureDirect(g, p); r.OK {
-		t.Fatal("signature_direct passed a tampered gentx")
-	}
+	assert.False(t, CheckSignatureDirect(g, p).OK, "signature_direct passed a tampered gentx")
 }

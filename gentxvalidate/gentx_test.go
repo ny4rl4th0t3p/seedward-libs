@@ -1,16 +1,18 @@
 package gentxvalidate
 
 import (
-	"bytes"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // The fixture is a real osmosis-1 mainnet gentx. Its signature is the
 // strongest possible oracle: VerifyDirect can only return true if the
 // reconstructed sign bytes are byte-identical to what the validator's wallet
-// signed. The SDK oracle in spike/oracle diagnoses *why* when this fails.
+// signed.
 const (
 	fixtureChainID = "osmosis-1"
 	fixtureAccNum  = 0
@@ -24,9 +26,7 @@ func loadFixture(t *testing.T) *ParsedGentx {
 func loadFixtureNamed(t *testing.T, name string) *ParsedGentx {
 	t.Helper()
 	g, err := Decode(readFixtureBytes(t, name))
-	if err != nil {
-		t.Fatalf("decode fixture: %v", err)
-	}
+	require.NoError(t, err, "decode fixture")
 	return g
 }
 
@@ -35,60 +35,33 @@ func loadFixtureNamed(t *testing.T, name string) *ParsedGentx {
 func readFixtureBytes(t *testing.T, name string) []byte {
 	t.Helper()
 	data, err := os.ReadFile(filepath.Join("testdata", "osmosis-1-gentx", name))
-	if err != nil {
-		t.Fatalf("read fixture: %v", err)
-	}
+	require.NoError(t, err, "read fixture")
 	return data
 }
 
 func TestDecodeFields(t *testing.T) {
 	g := loadFixture(t)
 
-	if g.Msg.Description.Moniker != "Bi23 Labs" {
-		t.Errorf("moniker = %q", g.Msg.Description.Moniker)
-	}
-	if g.Msg.Description.SecurityContact != "" {
-		t.Errorf("security_contact = %q, want empty", g.Msg.Description.SecurityContact)
-	}
-	if g.Msg.Commission.Rate != "0.100000000000000000" {
-		t.Errorf("rate = %q", g.Msg.Commission.Rate)
-	}
-	if g.Msg.Value.Denom != "uosmo" || g.Msg.Value.Amount != "1000000" {
-		t.Errorf("value = %+v", g.Msg.Value)
-	}
-	if g.TimeoutHeight != 0 {
-		t.Errorf("timeout_height = %d, want 0", g.TimeoutHeight)
-	}
-	if g.Signer.Mode != "SIGN_MODE_DIRECT" {
-		t.Errorf("mode = %q", g.Signer.Mode)
-	}
-	if g.Signer.Sequence != 0 {
-		t.Errorf("sequence = %d, want 0", g.Signer.Sequence)
-	}
-	if len(g.Signer.PubKey) != 33 {
-		t.Errorf("account pubkey length = %d, want 33 (compressed)", len(g.Signer.PubKey))
-	}
-	if len(g.Msg.ConsensusPubKey) != 32 {
-		t.Errorf("consensus pubkey length = %d, want 32 (ed25519)", len(g.Msg.ConsensusPubKey))
-	}
-	if len(g.Signature) != 64 {
-		t.Errorf("signature length = %d, want 64 (r||s)", len(g.Signature))
-	}
-	if g.Fee.GasLimit != 200000 {
-		t.Errorf("gas_limit = %d", g.Fee.GasLimit)
-	}
+	assert.Equal(t, "Bi23 Labs", g.Msg.Description.Moniker)
+	assert.Empty(t, g.Msg.Description.SecurityContact, "security_contact should be empty")
+	assert.Equal(t, "0.100000000000000000", g.Msg.Commission.Rate)
+	assert.Equal(t, "uosmo", g.Msg.Value.Denom)
+	assert.Equal(t, "1000000", g.Msg.Value.Amount)
+	assert.Zero(t, g.TimeoutHeight)
+	assert.Equal(t, "SIGN_MODE_DIRECT", g.Signer.Mode)
+	assert.Zero(t, g.Signer.Sequence)
+	assert.Len(t, g.Signer.PubKey, 33, "account pubkey, want 33 (compressed)")
+	assert.Len(t, g.Msg.ConsensusPubKey, 32, "consensus pubkey, want 32 (ed25519)")
+	assert.Len(t, g.Signature, 64, "signature, want 64 (r||s)")
+	assert.Equal(t, uint64(200000), g.Fee.GasLimit)
 }
 
 func TestVerifyMainnetSignature(t *testing.T) {
 	g := loadFixture(t)
 
 	ok, err := VerifyDirect(g, fixtureChainID, fixtureAccNum)
-	if err != nil {
-		t.Fatalf("VerifyDirect: %v", err)
-	}
-	if !ok {
-		t.Fatal("mainnet signature did not verify — sign-bytes reconstruction is not byte-exact")
-	}
+	require.NoError(t, err)
+	require.True(t, ok, "mainnet signature did not verify — sign-bytes reconstruction is not byte-exact")
 }
 
 func TestVerifyRejectsTamper(t *testing.T) {
@@ -110,12 +83,8 @@ func TestVerifyRejectsTamper(t *testing.T) {
 			g := loadFixture(t)
 			tc.mutate(g)
 			ok, err := VerifyDirect(g, tc.chainID, fixtureAccNum)
-			if err != nil {
-				t.Fatalf("VerifyDirect: %v", err)
-			}
-			if ok {
-				t.Fatal("tampered gentx verified — verification is not sound")
-			}
+			require.NoError(t, err)
+			require.False(t, ok, "tampered gentx verified — verification is not sound")
 		})
 	}
 }
@@ -138,9 +107,8 @@ func TestVerifyDirectErrors(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			g := loadFixture(t)
 			tc.mutate(g)
-			if _, err := VerifyDirect(g, fixtureChainID, fixtureAccNum); err == nil {
-				t.Fatal("expected error")
-			}
+			_, err := VerifyDirect(g, fixtureChainID, fixtureAccNum)
+			require.Error(t, err, "expected error")
 		})
 	}
 }
@@ -163,12 +131,8 @@ func TestVerifyDirectScalarOverflow(t *testing.T) {
 				g.Signature[i] = 0xFF
 			}
 			ok, err := VerifyDirect(g, fixtureChainID, fixtureAccNum)
-			if err != nil {
-				t.Fatalf("overflow scalar must not be a processing error: %v", err)
-			}
-			if ok {
-				t.Fatal("overflow scalar verified")
-			}
+			require.NoError(t, err, "overflow scalar must not be a processing error")
+			assert.False(t, ok, "overflow scalar verified")
 		})
 	}
 }
@@ -177,17 +141,11 @@ func TestDirectSignBytesDeterministic(t *testing.T) {
 	g := loadFixture(t)
 
 	first, err := DirectSignBytes(g, fixtureChainID, fixtureAccNum)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	for i := range 100 {
 		got, err := DirectSignBytes(g, fixtureChainID, fixtureAccNum)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !bytes.Equal(got, first) {
-			t.Fatalf("non-deterministic sign bytes on iteration %d", i)
-		}
+		require.NoError(t, err)
+		require.Equal(t, first, got, "non-deterministic sign bytes on iteration %d", i)
 	}
 }
 
@@ -206,19 +164,13 @@ func TestLegacyDecWire(t *testing.T) {
 	}
 	for _, tc := range cases {
 		got, err := legacyDecWire(tc.in, "test")
-		if err != nil {
-			t.Errorf("legacyDecWire(%q): %v", tc.in, err)
-			continue
-		}
-		if string(got) != tc.want {
-			t.Errorf("legacyDecWire(%q) = %q, want %q", tc.in, got, tc.want)
-		}
+		require.NoError(t, err, "legacyDecWire(%q)", tc.in)
+		assert.Equal(t, tc.want, string(got), "legacyDecWire(%q)", tc.in)
 	}
 
 	for _, bad := range []string{"", ".", "1.2.3", "-0.1", "0.1234567890123456789", "abc"} {
-		if _, err := legacyDecWire(bad, "test"); err == nil {
-			t.Errorf("legacyDecWire(%q): expected error", bad)
-		}
+		_, err := legacyDecWire(bad, "test")
+		assert.Error(t, err, "legacyDecWire(%q): expected error", bad)
 	}
 }
 
@@ -243,9 +195,8 @@ func TestDecodeRejects(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if _, err := Decode([]byte(tc.json)); err == nil {
-				t.Fatal("expected error")
-			}
+			_, err := Decode([]byte(tc.json))
+			require.Error(t, err, "expected error")
 		})
 	}
 }

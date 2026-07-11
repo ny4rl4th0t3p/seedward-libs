@@ -9,10 +9,10 @@ import (
 	"strconv"
 )
 
-// MsgCreateValidatorTypeURL is the only message type the Phase 0 decoder accepts.
+// MsgCreateValidatorTypeURL is the only message type the decoder accepts.
 const MsgCreateValidatorTypeURL = "/cosmos.staking.v1beta1.MsgCreateValidator"
 
-// ParsedGentx is the decoded, field-accessible gentx (spec §3): moniker,
+// ParsedGentx is the decoded, field-accessible gentx: moniker,
 // commission rates, consensus pubkey, operator/account addresses,
 // self-delegation coin, signer info, and signature.
 type ParsedGentx struct {
@@ -183,9 +183,8 @@ func Decode(data []byte) (*ParsedGentx, error) {
 		return nil, fmt.Errorf("gentxvalidate: legacy StdTx gentx (%q, pre-protobuf SDK) is not supported", raw.LegacyType)
 	}
 
-	// Exactly one message — the spec's single-MsgCreateValidator heavy
-	// invariant is enforced here and reported under well_formed; it has no
-	// separate invariant ID.
+	// Exactly one message — the single-MsgCreateValidator invariant is enforced
+	// here and reported under well_formed; it has no separate invariant ID.
 	if n := len(raw.Body.Messages); n != 1 {
 		return nil, fmt.Errorf("gentxvalidate: expected exactly 1 message, got %d", n)
 	}
